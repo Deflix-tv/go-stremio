@@ -35,7 +35,7 @@ func streamHandler(id string) ([]stremio.StreamItem, error) {
 func main() {
 	streamHandlers := map[string]stremio.StreamHandler{"movie": streamHandler}
 
-	addon, err := stremio.NewAddon(manifest, nil, streamHandlers, stremio.Options{BindAddr: "0.0.0.0", Port: 7000, LogLevel: "panic"})
+	addon, err := stremio.NewAddon(manifest, nil, streamHandlers, stremio.Options{BindAddr: "0.0.0.0", Port: 7000, DisableRequestLogging: true})
 	if err != nil {
 		log.Fatalf("Couldn't create addon: %v", err)
 	}

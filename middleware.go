@@ -19,7 +19,7 @@ func timerMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
+func createCORSmiddleware() func(http.Handler) http.Handler {
 	// Headers as listed by the Stremio example addon.
 	//
 	// According to logs an actual stream request sends these headers though:
@@ -43,28 +43,40 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 	originsOk := handlers.AllowedOrigins([]string{"*"})
 	methodsOk := handlers.AllowedMethods([]string{"GET"})
-	return handlers.CORS(originsOk, headersOk, methodsOk)(next)
+
+	corsHandler := handlers.CORS(originsOk, headersOk, methodsOk)
+
+	return func(next http.Handler) http.Handler {
+		return corsHandler(next)
+	}
 }
 
 var recoveryMiddleware = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))
 
-func loggingMiddleware(before http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rCtx := r.Context()
-		// First call the *before* handler!
-		before.ServeHTTP(w, r)
-		// Then log
-		reqStart := rCtx.Value("start").(time.Time)
-		duration := time.Since(reqStart).Milliseconds()
-		durationString := strconv.FormatInt(duration, 10) + "ms"
+func createLoggingMiddleware(logRequests bool) func(http.Handler) http.Handler {
+	if logRequests {
+		return func(before http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				rCtx := r.Context()
+				// First call the *before* handler!
+				before.ServeHTTP(w, r)
+				// Then log
+				reqStart := rCtx.Value("start").(time.Time)
+				duration := time.Since(reqStart).Milliseconds()
+				durationString := strconv.FormatInt(duration, 10) + "ms"
 
-		fields := log.Fields{
-			"method":     r.Method,
-			"url":        r.URL,
-			"remoteAddr": r.RemoteAddr,
-			"userAgent":  r.Header.Get("User-Agent"),
-			"duration":   durationString,
+				fields := log.Fields{
+					"method":     r.Method,
+					"url":        r.URL,
+					"remoteAddr": r.RemoteAddr,
+					"userAgent":  r.Header.Get("User-Agent"),
+					"duration":   durationString,
+				}
+				log.WithFields(fields).Info("Handled request")
+			})
 		}
-		log.WithFields(fields).Info("Handled request")
-	})
+	}
+	return func(next http.Handler) http.Handler {
+		return next
+	}
 }

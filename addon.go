@@ -44,6 +44,9 @@ type Options struct {
 	// When no value is set, it will lead to a "404 Not Found" response.
 	// Default "".
 	RedirectURL string
+	// Flag for indicating whether requests should be logged.
+	// Default false (meaning requests will be logged by default).
+	DisableRequestLogging bool
 	// Flag for indicating whether you want to expose URL handlers for the Go profiler.
 	// The URLs are be the standard ones: "/debug/pprof/...".
 	// Default false.
@@ -52,11 +55,12 @@ type Options struct {
 
 // DefaultOptions is an Options object with default values.
 var DefaultOptions = Options{
-	BindAddr:    "localhost",
-	Port:        8080,
-	LogLevel:    "info",
-	RedirectURL: "",
-	Profiling:   false,
+	BindAddr:              "localhost",
+	Port:                  8080,
+	LogLevel:              "info",
+	RedirectURL:           "",
+	DisableRequestLogging: false,
+	Profiling:             false,
 }
 
 // Addon represents a remote addon.
@@ -104,10 +108,10 @@ func (a Addon) Run() {
 	r := mux.NewRouter()
 	s := r.Methods("GET").Subrouter()
 	s.Use(timerMiddleware,
-		corsMiddleware, // Stremio doesn't show stream responses when no CORS middleware is used!
+		createCORSmiddleware(), // Stremio doesn't show stream responses when no CORS middleware is used!
 		handlers.ProxyHeaders,
 		recoveryMiddleware,
-		loggingMiddleware)
+		createLoggingMiddleware(!a.opts.DisableRequestLogging))
 	s.HandleFunc("/health", healthHandler)
 	// Optional profiling
 	if a.opts.Profiling {
