@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	netpprof "net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime/pprof"
 	"strconv"
 	"syscall"
 	"time"
@@ -42,6 +44,10 @@ type Options struct {
 	// When no value is set, it will lead to a "404 Not Found" response.
 	// Default "".
 	RedirectURL string
+	// Flag for indicating whether you want to expose URL handlers for the Go profiler.
+	// The URLs are be the standard ones: "/debug/pprof/...".
+	// Default false.
+	Profiling bool
 }
 
 // DefaultOptions is an Options object with default values.
@@ -50,6 +56,7 @@ var DefaultOptions = Options{
 	Port:        8080,
 	LogLevel:    "info",
 	RedirectURL: "",
+	Profiling:   false,
 }
 
 // Addon represents a remote addon.
@@ -102,6 +109,21 @@ func (a Addon) Run() {
 		recoveryMiddleware,
 		loggingMiddleware)
 	s.HandleFunc("/health", healthHandler)
+	// Optional profiling
+	if a.opts.Profiling {
+		for _, p := range pprof.Profiles() {
+			s.HandleFunc("/debug/pprof/"+p.Name(), netpprof.Handler(p.Name()).ServeHTTP)
+		}
+		s.HandleFunc("/debug/pprof/cmdline", netpprof.Cmdline)
+		s.HandleFunc("/debug/pprof/profile", netpprof.Profile)
+		s.HandleFunc("/debug/pprof/trace", netpprof.Trace)
+
+		s.HandleFunc("/debug/pprof/", netpprof.Index)
+		s.HandleFunc("/debug/pprof", func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Set("Location", "/debug/pprof/")
+			rw.WriteHeader(http.StatusMovedPermanently)
+		})
+	}
 
 	// Stremio endpoints
 
