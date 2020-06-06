@@ -7,7 +7,7 @@ The code in `addon.js` is from the main README from the official Stremio addon S
 On a fresh Ubuntu 20.04 machine run it with:
 
 ```bash
-apt install -y nodejs npm
+apt install -y nodejs npm # Installs Node 10, latest version is 12
 npm install stremio-addon-sdk
 node ./addon.js
 ```
@@ -19,8 +19,7 @@ The code in `addon.go` is does exactly the same as the Node.js addon, but uses t
 On a fresh Ubuntu 20.04 machine run it with:
 
 ```bash
-apt install -y golang
-go mod init addon
+apt install -y golang # Installs Go 1.13, latest version is 1.14
 go get ./...
 go build -o addon
 ./addon
