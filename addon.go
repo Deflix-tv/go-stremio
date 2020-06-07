@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	netpprof "net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime/pprof"
 	"strconv"
 	"syscall"
 	"time"
@@ -42,14 +44,23 @@ type Options struct {
 	// When no value is set, it will lead to a "404 Not Found" response.
 	// Default "".
 	RedirectURL string
+	// Flag for indicating whether requests should be logged.
+	// Default false (meaning requests will be logged by default).
+	DisableRequestLogging bool
+	// Flag for indicating whether you want to expose URL handlers for the Go profiler.
+	// The URLs are be the standard ones: "/debug/pprof/...".
+	// Default false.
+	Profiling bool
 }
 
 // DefaultOptions is an Options object with default values.
 var DefaultOptions = Options{
-	BindAddr:    "localhost",
-	Port:        8080,
-	LogLevel:    "info",
-	RedirectURL: "",
+	BindAddr:              "localhost",
+	Port:                  8080,
+	LogLevel:              "info",
+	RedirectURL:           "",
+	DisableRequestLogging: false,
+	Profiling:             false,
 }
 
 // Addon represents a remote addon.
@@ -97,11 +108,26 @@ func (a Addon) Run() {
 	r := mux.NewRouter()
 	s := r.Methods("GET").Subrouter()
 	s.Use(timerMiddleware,
-		corsMiddleware, // Stremio doesn't show stream responses when no CORS middleware is used!
+		createCORSmiddleware(), // Stremio doesn't show stream responses when no CORS middleware is used!
 		handlers.ProxyHeaders,
 		recoveryMiddleware,
-		loggingMiddleware)
+		createLoggingMiddleware(!a.opts.DisableRequestLogging))
 	s.HandleFunc("/health", healthHandler)
+	// Optional profiling
+	if a.opts.Profiling {
+		for _, p := range pprof.Profiles() {
+			s.HandleFunc("/debug/pprof/"+p.Name(), netpprof.Handler(p.Name()).ServeHTTP)
+		}
+		s.HandleFunc("/debug/pprof/cmdline", netpprof.Cmdline)
+		s.HandleFunc("/debug/pprof/profile", netpprof.Profile)
+		s.HandleFunc("/debug/pprof/trace", netpprof.Trace)
+
+		s.HandleFunc("/debug/pprof/", netpprof.Index)
+		s.HandleFunc("/debug/pprof", func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Set("Location", "/debug/pprof/")
+			rw.WriteHeader(http.StatusMovedPermanently)
+		})
+	}
 
 	// Stremio endpoints
 

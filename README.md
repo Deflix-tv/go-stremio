@@ -7,7 +7,8 @@ A Go library for creating Stremio addons
 1. Introduction
 2. About this SDK
 3. Example
-4. Related projects
+4. Advantages
+5. Related projects
 
 ## Introduction
 
@@ -82,6 +83,46 @@ func streamHandler(id string) ([]stremio.StreamItem, error) {
     return nil, stremio.NotFound
 }
 ```
+
+## Advantages
+
+Some reasons why you might want to consider developing an addon in Go with this SDK:
+
+Criterium|Node.js addon|Go addon
+---------|--------|-------------
+Direct SDK dependencies|9|3
+Transitive SDK dependencies|~100|1
+Size of a deployable addon|20 MB|8 MB
+Number of artifacts to deploy|depends|1
+Runtime dependencies|Node.js|-
+Concurrency|Single-threaded|Multi-threaded
+
+Looking at the performance it depends a lot on what your addon does. Due to the single-threaded nature of Node.js, the more CPU-bound tasks your addon does, the bigger the performance difference will be (in favor of Go). Here we compare the simplest possible addon to be able to compare just the SDKs and not any additional overhead (like DB access):
+
+Criterium|Node.js addon|Go addon
+---------|--------|-------------
+Startup time to 1st request¹|920-1300ms|5-20ms
+Max rps² @ 100 users|5000|5000
+Max rps² @ 1000 users<br>(2 core, 2 GB RAM, 5 €/mo)|4000|14000
+Max rps² @ 1000 users<br>(2 core, 2 GB RAM, 10 €/mo)|7000|21000
+Max rps² @ 1000 users<br>(8 dedicated cores, 32 GB RAM, 100 €/mo)|17000|43000
+Memory usage @ 100 users³|70-80 MB|10-20 MB
+Memory usage @ 1000 users³|90-100 MB|30-40 MB
+
+¹) Measured using [ttfok](https://github.com/doingodswork/ttfok) and the code in [benchmark](benchmark)  
+²) Max number of requests per second where the p99 latency is still < 100ms  
+³) At a request rate *half* of what we measured as maximum
+
+The load tests were run under the following cirumstances:
+
+- We used the addon code, load testing tool and setup described in [benchmark](benchmark)
+- The Load testing tool ran on a different server *in a different datacenter in another country* for more real world-like circumstances
+- The load tests ran for 15s, with previous warmup
+
+> Note:
+>
+> - This Go SDK is at its very beginning. Some features will be added in the future that might decrease its performance, while others will increase it.
+> - The Node.js addon was run as a single instance. You can do more complex deployments with a load balancer like [HAProxy](https://www.haproxy.org/) and multiple instances of the same Node.js service on a single machine to take advantage of multiple CPU cores.
 
 ## Related projects
 
