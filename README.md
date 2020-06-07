@@ -1,6 +1,6 @@
-# Stremio addon SDK
+# go-stremio
 
-A Go library for creating Stremio addons
+Stremio addon SDK for Go
 
 ## Contents
 
@@ -36,7 +36,7 @@ package main
 import (
     "log"
 
-    "github.com/deflix-tv/stremio-addon-sdk"
+    "github.com/deflix-tv/go-stremio"
 )
 
 var (
@@ -126,5 +126,5 @@ The load tests were run under the following cirumstances:
 
 ## Related projects
 
-- [The official Node.js SDK](https://github.com/Stremio/stremio-addon-sdk)
+- [The official Stremio addon SDK for Node.js](https://github.com/Stremio/stremio-addon-sdk)
 - [Stremio addon SDK for Rust](https://github.com/sleeyax/stremio-addon-sdk)

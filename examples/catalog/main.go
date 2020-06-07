@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/deflix-tv/stremio-addon-sdk"
+	"github.com/deflix-tv/go-stremio"
 )
 
 var (
