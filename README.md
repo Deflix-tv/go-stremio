@@ -4,11 +4,11 @@ A Go library for creating Stremio addons
 
 ## Contents
 
-1. Introduction
-2. About this SDK
-3. Example
-4. Advantages
-5. Related projects
+1. [Introduction](#introduction)
+2. [About this SDK](#about-this-sdk)
+3. [Example](#example)
+4. [Advantages](#advantages)
+5. [Related projects](#related-projects)
 
 ## Introduction
 
