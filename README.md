@@ -49,7 +49,7 @@ var (
 )
 
 func main() {
-    streamHandlers := map[string]stremio.StreamHandler{"movie": streamHandler}
+    streamHandlers := map[string]stremio.StreamHandler{"movie": movieHandler}
 
     addon, err := stremio.NewAddon(manifest, nil, streamHandlers, stremio.Options{Port: 8080})
     if err != nil {
@@ -59,7 +59,7 @@ func main() {
     addon.Run()
 }
 
-func streamHandler(id string) ([]stremio.StreamItem, error) {
+func movieHandler(id string) ([]stremio.StreamItem, error) {
     // We only serve Big Buck Bunny and Sintel
     if id == "tt1254207" {
         return []stremio.StreamItem{

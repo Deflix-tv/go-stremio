@@ -8,8 +8,9 @@ import (
 
 var (
 	manifest = stremio.Manifest{
-		ID:          "org.myexampleaddon",
-		Version:     "1.0.0",
+		ID:      "org.myexampleaddon",
+		Version: "1.0.0",
+
 		Description: "simple example",
 		Name:        "simple example",
 
