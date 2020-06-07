@@ -1,7 +1,7 @@
 package stremio
 
 // Manifest describes the capabilities of the addon.
-// See https://github.com/Stremio/stremio-addon-sdk/blob/ddaa3b80def8a44e553349734dd02ec9c3fea52c/docs/api/responses/manifest.md
+// See https://github.com/Stremio/stremio-addon-sdk/blob/f6f1f2a8b627b9d4f2c62b003b251d98adadbebe/docs/api/responses/manifest.md
 type Manifest struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -35,9 +35,10 @@ type ResourceItem struct {
 type BehaviorHints struct {
 	// Note: Must include `omitempty`, otherwise it will be included if this struct is used in another one, even if the field of the containing struct is marked as `omitempty`
 	Adult bool `json:"adult,omitempty"`
+	P2P   bool `json:"p2p,omitempty"`
 }
 
-// CatalogItem represents an item in the catalog
+// CatalogItem represents a catalog.
 type CatalogItem struct {
 	Type string `json:"type"`
 	ID   string `json:"id"`
@@ -56,10 +57,8 @@ type ExtraItem struct {
 	OptionsLimit int      `json:"optionsLimit,omitempty"`
 }
 
-// This represents a meta item and is meant to be used within catalog responses.
-// See https://github.com/Stremio/stremio-addon-sdk/blob/ddaa3b80def8a44e553349734dd02ec9c3fea52c/docs/api/responses/meta.md
-//
-// Note: According to a Stremio developer the catalog response can include all fields from the MetaItem as well though!
+// MetaPreviewItem represents a meta preview item and is meant to be used within catalog responses.
+// See https://github.com/Stremio/stremio-addon-sdk/blob/f6f1f2a8b627b9d4f2c62b003b251d98adadbebe/docs/api/responses/meta.md#meta-preview-object
 type MetaPreviewItem struct {
 	ID     string `json:"id"`
 	Type   string `json:"type"`
@@ -68,29 +67,31 @@ type MetaPreviewItem struct {
 
 	// Optional
 	PosterShape string `json:"posterShape,omitempty"`
-	Background  string `json:"background,omitempty"` // URL
-	Logo        string `json:"logo,omitempty"`       // URL
-	Description string `json:"description,omitempty"`
+
+	// Optional, used for the "Discover" page sidebar
+	Links       []MetaLinkItem `json:"links,omitempty"` // For genres, director, cast, etc.
+	IMDbRating  string         `json:"imdbRating,omitempty"`
+	ReleaseInfo string         `json:"releaseInfo,omitempty"`
+	Description string         `json:"description,omitempty"`
 }
 
-// This represents a meta item and is meant to be used when info for a specific item was requested.
-// It *can* be used for catalog responses (as long as a Poster URL is given), but is meant for requests for specific items.
-// Catalog responses contain MetaPreviewItem objects.
-// See https://github.com/Stremio/stremio-addon-sdk/blob/ddaa3b80def8a44e553349734dd02ec9c3fea52c/docs/api/responses/meta.md
+// MetaItem represents a meta item and is meant to be used when info for a specific item was requested.
+// See https://github.com/Stremio/stremio-addon-sdk/blob/f6f1f2a8b627b9d4f2c62b003b251d98adadbebe/docs/api/responses/meta.md
 type MetaItem struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
 	Name string `json:"name"`
 
 	// Optional
+	Links       []MetaLinkItem `json:"links,omitempty"`  // For genres, director, cast, etc.
 	Poster      string         `json:"poster,omitempty"` // URL
 	PosterShape string         `json:"posterShape,omitempty"`
 	Background  string         `json:"background,omitempty"` // URL
 	Logo        string         `json:"logo,omitempty"`       // URL
 	Description string         `json:"description,omitempty"`
-	IMDBrating  string         `json:"imdbRating,omitempty"`
+	ReleaseInfo string         `json:"releaseInfo,omitempty"`
+	IMDbRating  string         `json:"imdbRating,omitempty"`
 	Released    string         `json:"released,omitempty"` // Must be ISO 8601, e.g. "2010-12-06T05:00:00.000Z"
-	Links       []MetaLinkItem `json:"links,omitempty"`
 	Videos      []VideoItem    `json:"videos,omitempty"`
 	Runtime     string         `json:"runtime,omitempty"`
 	Language    string         `json:"language,omitempty"`
@@ -107,7 +108,7 @@ type MetaItem struct {
 type MetaLinkItem struct {
 	Name     string `json:"name"`
 	Category string `json:"category"`
-	URL      string `json:"url"` //  // URL. Can be "Meta Links" (see https://github.com/Stremio/stremio-addon-sdk/blob/ddaa3b80def8a44e553349734dd02ec9c3fea52c/docs/api/responses/meta.links.md)
+	URL      string `json:"url"` //  // URL. Can be "Meta Links" (see https://github.com/Stremio/stremio-addon-sdk/blob/f6f1f2a8b627b9d4f2c62b003b251d98adadbebe/docs/api/responses/meta.links.md)
 }
 
 type VideoItem struct {
@@ -126,7 +127,7 @@ type VideoItem struct {
 }
 
 // StreamItem represents a stream for a MetaItem.
-// See https://github.com/Stremio/stremio-addon-sdk/blob/ddaa3b80def8a44e553349734dd02ec9c3fea52c/docs/api/responses/stream.md
+// See https://github.com/Stremio/stremio-addon-sdk/blob/f6f1f2a8b627b9d4f2c62b003b251d98adadbebe/docs/api/responses/stream.md
 type StreamItem struct {
 	// One of the following is required
 	URL         string `json:"url,omitempty"` // URL
@@ -135,7 +136,7 @@ type StreamItem struct {
 	ExternalURL string `json:"externalUrl,omitempty"` // URL
 
 	// Optional
-	Title     string `json:"title,omitempty"`
+	Title     string `json:"title,omitempty"`   // Usually used for stream quality
 	FileIndex uint8  `json:"fileIdx,omitempty"` // Only when using InfoHash
 
 	// TODO: subtitles
