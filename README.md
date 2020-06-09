@@ -6,9 +6,10 @@ Stremio addon SDK for Go
 
 1. [Introduction](#introduction)
 2. [About this SDK](#about-this-sdk)
-3. [Example](#example)
-4. [Advantages](#advantages)
-5. [Related projects](#related-projects)
+3. [Features](#features)
+4. [Example](#example)
+5. [Advantages](#advantages)
+6. [Related projects](#related-projects)
 
 ## Introduction
 
@@ -25,6 +26,21 @@ But the [official Stremio addon SDK](https://github.com/Stremio/stremio-addon-sd
 This SDK is for Go!
 
 It provides the most important parts of the Node.js SDK and depending on the requirements of you, the libary users, it will be extended to provide more in the future.
+
+## Features
+
+- [x] All required *types* for building catalog and stream addons
+- [x] Web server with graceful shutdown
+- [x] CORS middleware to allow requests from Stremio
+- [x] Health check endpoint
+- [x] Optional profiling endpoints (for `go pprof`)
+- [x] Request logging
+
+Upcoming features:
+
+- [ ] Cache control and ETag handling
+- [ ] Custom user data in URLs
+- [ ] Custom service endpoints
 
 ## Example
 
