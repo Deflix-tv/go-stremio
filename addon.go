@@ -55,12 +55,9 @@ type Options struct {
 
 // DefaultOptions is an Options object with default values.
 var DefaultOptions = Options{
-	BindAddr:              "localhost",
-	Port:                  8080,
-	LogLevel:              "info",
-	RedirectURL:           "",
-	DisableRequestLogging: false,
-	Profiling:             false,
+	BindAddr: "localhost",
+	Port:     8080,
+	LogLevel: "info",
 }
 
 // Addon represents a remote addon.
