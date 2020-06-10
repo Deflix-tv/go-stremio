@@ -2,7 +2,10 @@ package stremio
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
@@ -35,29 +38,40 @@ func createManifestHandler(manifest Manifest) http.HandlerFunc {
 	}
 }
 
-func createCatalogHandler(catalogHandlers map[string]CatalogHandler) http.HandlerFunc {
+func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic bool) http.HandlerFunc {
 	handlers := make(map[string]handler, len(catalogHandlers))
 	for k, v := range catalogHandlers {
 		handlers[k] = func(id string) (interface{}, error) {
 			return v(id)
 		}
 	}
-	return createHandler("catalog", handlers, []byte("metas"))
+	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic)
 }
 
-func createStreamHandler(streamHandlers map[string]StreamHandler) http.HandlerFunc {
+func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic bool) http.HandlerFunc {
 	handlers := make(map[string]handler, len(streamHandlers))
 	for k, v := range streamHandlers {
 		handlers[k] = func(id string) (interface{}, error) {
 			return v(id)
 		}
 	}
-	return createHandler("stream", handlers, []byte("streams"))
+	return createHandler("stream", handlers, []byte("streams"), cacheAge, cachePublic)
 }
 
 type handler func(id string) (interface{}, error)
 
-func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte) http.HandlerFunc {
+func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic bool) http.HandlerFunc {
+	var cacheHeaderVal string
+	if cacheAge != 0 {
+		cacheAgeSeconds := strconv.FormatFloat(math.Round(cacheAge.Seconds()), 'f', 0, 64)
+		cacheHeaderVal = "max-age=" + cacheAgeSeconds
+		if cachePublic {
+			cacheHeaderVal += ", public"
+		} else {
+			cacheHeaderVal += ", private"
+		}
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Tracef("%vHandler called", handlerName)
 
@@ -104,6 +118,9 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 
 		log.WithField("body", string(resBody)).Debug("Responding")
 		w.Header().Set("Content-Type", "application/json")
+		if cacheHeaderVal != "" {
+			w.Header().Set("Cache-Control", cacheHeaderVal)
+		}
 		if _, err := w.Write(resBody); err != nil {
 			log.WithError(err).Error("Coldn't write response")
 		}

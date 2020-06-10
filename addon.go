@@ -51,6 +51,19 @@ type Options struct {
 	// The URLs are be the standard ones: "/debug/pprof/...".
 	// Default false.
 	Profiling bool
+	// Duration of client/proxy-side cache for responses from the catalog endpoint.
+	// Helps reducing number of requsts and transferred data volume to/from the app.
+	// The result is not cached by the SDK on the server side, so if two *separate* users make a reqeust,
+	// and no proxy cached the response, your CatalogHandler will be called twice.
+	// Default 0.
+	CacheAgeCatalogs time.Duration
+	// Same as CacheAgeCatalogs, but for streams.
+	CacheAgeStreams time.Duration
+	// Flag for indicating to proxies whether they are allowed to cache responses from the catalog endpoint.
+	// Default false.
+	CachePublicCatalogs bool
+	// Same as CachePublicCatalogs, but for streams.
+	CachePublicStreams bool
 }
 
 // DefaultOptions is an Options object with default values.
@@ -130,10 +143,10 @@ func (a Addon) Run() {
 
 	s.HandleFunc("/manifest.json", createManifestHandler(a.manifest))
 	if a.catalogHandlers != nil {
-		s.HandleFunc("/catalog/{type}/{id}.json", createCatalogHandler(a.catalogHandlers))
+		s.HandleFunc("/catalog/{type}/{id}.json", createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs))
 	}
 	if a.streamHandlers != nil {
-		s.HandleFunc("/stream/{type}/{id}.json", createStreamHandler(a.streamHandlers))
+		s.HandleFunc("/stream/{type}/{id}.json", createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams))
 	}
 
 	// Additional endpoints

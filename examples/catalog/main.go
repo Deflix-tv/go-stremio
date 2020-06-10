@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/deflix-tv/go-stremio"
 )
@@ -36,7 +37,13 @@ var (
 func main() {
 	catalogHandlers := map[string]stremio.CatalogHandler{"movie": movieHandler}
 
-	addon, err := stremio.NewAddon(manifest, catalogHandlers, nil, stremio.Options{})
+	// We want clients and proxies to cache the response for 24 hours.
+	options := stremio.Options{
+		CacheAgeCatalogs:    24 * time.Hour,
+		CachePublicCatalogs: true,
+	}
+
+	addon, err := stremio.NewAddon(manifest, catalogHandlers, nil, options)
 	if err != nil {
 		log.Fatalf("Couldn't create addon: %v", err)
 	}
