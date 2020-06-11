@@ -35,10 +35,10 @@ It provides the most important parts of the Node.js SDK and depending on the req
 - [x] Health check endpoint
 - [x] Optional profiling endpoints (for `go pprof`)
 - [x] Request logging
+- [x] Cache control and ETag handling
 
 Upcoming features:
 
-- [ ] Cache control and ETag handling
 - [ ] Custom user data in URLs
 - [ ] Custom service endpoints
 
@@ -106,7 +106,7 @@ Some reasons why you might want to consider developing an addon in Go with this 
 
 Criterium|Node.js addon|Go addon
 ---------|--------|-------------
-Direct SDK dependencies|9|3
+Direct SDK dependencies|9|4
 Transitive SDK dependencies|~100|1
 Size of a deployable addon|20 MB|8 MB
 Number of artifacts to deploy|depends|1

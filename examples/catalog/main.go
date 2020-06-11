@@ -37,10 +37,12 @@ var (
 func main() {
 	catalogHandlers := map[string]stremio.CatalogHandler{"movie": movieHandler}
 
-	// We want clients and proxies to cache the response for 24 hours.
+	// We want clients and proxies to cache the response for 24 hours
+	// and upon request with the same hash we only return a 304 Not Modified.
 	options := stremio.Options{
 		CacheAgeCatalogs:    24 * time.Hour,
 		CachePublicCatalogs: true,
+		HandleEtagCatalogs:  true,
 	}
 
 	addon, err := stremio.NewAddon(manifest, catalogHandlers, nil, options)

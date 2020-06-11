@@ -52,7 +52,7 @@ type Options struct {
 	// Default false.
 	Profiling bool
 	// Duration of client/proxy-side cache for responses from the catalog endpoint.
-	// Helps reducing number of requsts and transferred data volume to/from the app.
+	// Helps reducing number of requsts and transferred data volume to/from the server.
 	// The result is not cached by the SDK on the server side, so if two *separate* users make a reqeust,
 	// and no proxy cached the response, your CatalogHandler will be called twice.
 	// Default 0.
@@ -64,6 +64,14 @@ type Options struct {
 	CachePublicCatalogs bool
 	// Same as CachePublicCatalogs, but for streams.
 	CachePublicStreams bool
+	// Flag for indicating whether the "ETag" header should be set and the "If-None-Match" header checked.
+	// Helps reducing the transferred data volume from the server even further.
+	// Only makes sense when setting a non-zero CacheAgeCatalogs.
+	// Leads to a slight computational overhead due to every CatalogHandler result being hashed.
+	// Default false.
+	HandleEtagCatalogs bool
+	// Same as HandleEtagCatalogs, but for streams.
+	HandleEtagStreams bool
 }
 
 // DefaultOptions is an Options object with default values.
@@ -90,6 +98,9 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		return Addon{}, errors.New("An empty manifest was passed")
 	} else if catalogHandlers == nil && streamHandlers == nil {
 		return Addon{}, errors.New("No handler was passed")
+	} else if (opts.HandleEtagCatalogs && !opts.CachePublicCatalogs) ||
+		(opts.HandleEtagStreams && !opts.CachePublicStreams) {
+		return Addon{}, errors.New("ETags only make sense when also setting a cache age")
 	}
 	// Set default values
 	if opts.BindAddr == "" {
@@ -143,10 +154,10 @@ func (a Addon) Run() {
 
 	s.HandleFunc("/manifest.json", createManifestHandler(a.manifest))
 	if a.catalogHandlers != nil {
-		s.HandleFunc("/catalog/{type}/{id}.json", createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs))
+		s.HandleFunc("/catalog/{type}/{id}.json", createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs))
 	}
 	if a.streamHandlers != nil {
-		s.HandleFunc("/stream/{type}/{id}.json", createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams))
+		s.HandleFunc("/stream/{type}/{id}.json", createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams))
 	}
 
 	// Additional endpoints

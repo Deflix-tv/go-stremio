@@ -33,10 +33,12 @@ var (
 func main() {
 	streamHandlers := map[string]stremio.StreamHandler{"movie": movieHandler}
 
-	// We want clients and proxies to cache the response for 24 hours.
+	// We want clients and proxies to cache the response for 24 hours
+	// and upon request with the same hash we only return a 304 Not Modified.
 	options := stremio.Options{
 		CacheAgeStreams:    24 * time.Hour,
 		CachePublicStreams: true,
+		HandleEtagStreams:  true,
 	}
 
 	addon, err := stremio.NewAddon(manifest, nil, streamHandlers, options)

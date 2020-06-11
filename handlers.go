@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
@@ -38,29 +39,29 @@ func createManifestHandler(manifest Manifest) http.HandlerFunc {
 	}
 }
 
-func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic bool) http.HandlerFunc {
+func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool) http.HandlerFunc {
 	handlers := make(map[string]handler, len(catalogHandlers))
 	for k, v := range catalogHandlers {
 		handlers[k] = func(id string) (interface{}, error) {
 			return v(id)
 		}
 	}
-	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic)
+	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic, handleEtag)
 }
 
-func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic bool) http.HandlerFunc {
+func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool) http.HandlerFunc {
 	handlers := make(map[string]handler, len(streamHandlers))
 	for k, v := range streamHandlers {
 		handlers[k] = func(id string) (interface{}, error) {
 			return v(id)
 		}
 	}
-	return createHandler("stream", handlers, []byte("streams"), cacheAge, cachePublic)
+	return createHandler("stream", handlers, []byte("streams"), cacheAge, cachePublic, handleEtag)
 }
 
 type handler func(id string) (interface{}, error)
 
-func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic bool) http.HandlerFunc {
+func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool) http.HandlerFunc {
 	var cacheHeaderVal string
 	if cacheAge != 0 {
 		cacheAgeSeconds := strconv.FormatFloat(math.Round(cacheAge.Seconds()), 'f', 0, 64)
@@ -109,6 +110,30 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			return
 		}
 
+		// Handle ETag
+		var eTag string
+		if handleEtag {
+			hash := xxhash.Sum64(resBody)
+			eTag = strconv.FormatUint(hash, 16)
+			ifNoneMatch := r.Header.Get("If-None-Match")
+			fields := log.Fields{"If-None-Match": ifNoneMatch, "ETag": eTag}
+			modified := false
+			if ifNoneMatch == "*" {
+				log.WithFields(fields).Debug("If-None-Match is \"*\", responding with 304")
+			} else if ifNoneMatch != eTag {
+				log.WithFields(fields).Debug("If-None-Match != ETag")
+				modified = true
+			} else {
+				log.WithFields(fields).Debug("ETag matches, responding with 304")
+			}
+			if !modified {
+				w.Header().Set("Cache-Control", cacheHeaderVal) // Required according to https://tools.ietf.org/html/rfc7232#section-4.1
+				w.Header().Set("ETag", eTag)                    // We set it to make sure a client doesn't overwrite its cached ETag with an empty string or so.
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+		}
+
 		if len(jsonArrayKey) > 0 {
 			prefix := append([]byte(`{"`), jsonArrayKey...)
 			prefix = append(prefix, '"', ':')
@@ -120,6 +145,9 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 		w.Header().Set("Content-Type", "application/json")
 		if cacheHeaderVal != "" {
 			w.Header().Set("Cache-Control", cacheHeaderVal)
+			if handleEtag {
+				w.Header().Set("ETag", eTag)
+			}
 		}
 		if _, err := w.Write(resBody); err != nil {
 			log.WithError(err).Error("Coldn't write response")
