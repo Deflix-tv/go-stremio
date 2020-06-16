@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gorilla/handlers"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 func timerMiddleware(next http.Handler) http.Handler {
@@ -53,7 +53,7 @@ func createCORSmiddleware() func(http.Handler) http.Handler {
 
 var recoveryMiddleware = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))
 
-func createLoggingMiddleware(logRequests bool) func(http.Handler) http.Handler {
+func createLoggingMiddleware(logRequests bool, logger *zap.Logger) func(http.Handler) http.Handler {
 	if logRequests {
 		return func(before http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -65,14 +65,12 @@ func createLoggingMiddleware(logRequests bool) func(http.Handler) http.Handler {
 				duration := time.Since(reqStart).Milliseconds()
 				durationString := strconv.FormatInt(duration, 10) + "ms"
 
-				fields := log.Fields{
-					"method":     r.Method,
-					"url":        r.URL,
-					"remoteAddr": r.RemoteAddr,
-					"userAgent":  r.Header.Get("User-Agent"),
-					"duration":   durationString,
-				}
-				log.WithFields(fields).Info("Handled request")
+				logger.Info("Handled request",
+					zap.String("method", r.Method),
+					zap.Stringer("url", r.URL),
+					zap.String("remoteAddr", r.RemoteAddr),
+					zap.String("userAgent", r.Header.Get("User-Agent")),
+					zap.String("duration", durationString))
 			})
 		}
 	}

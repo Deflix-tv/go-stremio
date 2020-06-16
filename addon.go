@@ -3,6 +3,7 @@ package stremio
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	netpprof "net/http/pprof"
 	"os"
@@ -14,7 +15,8 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // CatalogHandler is the callback for catalog requests for a specific type (like "movie").
@@ -36,8 +38,8 @@ type Options struct {
 	Port int
 	// The log level.
 	// Only logs with the same or a higher log level will be shown.
-	// For example when you set it to "info", info, warn, error, fatal and panic logs will be shown, but no debug or trace logs.
-	// Must be parseable by logrus: https://pkg.go.dev/github.com/sirupsen/logrus?tab=doc#ParseLevel
+	// For example when you set it to "info", info, warn and error logs will be shown, but no debug logs.
+	// Accepts "debug", "info", "warn" and "error".
 	// Default "info".
 	LogLevel string
 	// URL to redirect to when someone requests the root of the handler instead of the manifest, catalog, stream etc.
@@ -88,6 +90,7 @@ type Addon struct {
 	catalogHandlers map[string]CatalogHandler
 	streamHandlers  map[string]StreamHandler
 	opts            Options
+	logger          *zap.Logger
 }
 
 // NewAddon creates a new Addon object that can be started with Run().
@@ -113,27 +116,52 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		opts.Port = DefaultOptions.Port
 	}
 
+	// Configure logger
+	logLevel, err := parseZapLevel(opts.LogLevel)
+	if err != nil {
+		return Addon{}, fmt.Errorf("Couldn't parse log level: %w", err)
+	}
+	logConfig := zap.NewDevelopmentConfig()
+	logConfig.Level = zap.NewAtomicLevelAt(logLevel)
+	// Mix between zap's development and production EncoderConfig and other changes.
+	logConfig.EncoderConfig = zapcore.EncoderConfig{
+		TimeKey:        "ts",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "msg",
+		StacktraceKey:  "stacktrace",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.CapitalLevelEncoder,
+		EncodeTime:     zapcore.RFC3339TimeEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
+	}
+	logger, err := logConfig.Build()
+	if err != nil {
+		return Addon{}, fmt.Errorf("Couldn't create logger: %w", err)
+	}
+
 	return Addon{
 		manifest:        manifest,
 		catalogHandlers: catalogHandlers,
 		streamHandlers:  streamHandlers,
 		opts:            opts,
+		logger:          logger,
 	}, nil
 }
 
 // Run starts the remote addon. It sets up an HTTP server that handles requests to "/manifest.json" etc. and gracefully handles shutdowns.
 func (a Addon) Run() {
-	setLogLevel(a.opts.LogLevel)
-
-	log.Info("Setting up server...")
+	logger := a.logger
+	logger.Info("Setting up server...")
 	r := mux.NewRouter()
 	s := r.Methods("GET").Subrouter()
 	s.Use(timerMiddleware,
 		createCORSmiddleware(), // Stremio doesn't show stream responses when no CORS middleware is used!
 		handlers.ProxyHeaders,
 		recoveryMiddleware,
-		createLoggingMiddleware(!a.opts.DisableRequestLogging))
-	s.HandleFunc("/health", healthHandler)
+		createLoggingMiddleware(!a.opts.DisableRequestLogging, logger))
+	s.HandleFunc("/health", createHealthHandler(logger))
 	// Optional profiling
 	if a.opts.Profiling {
 		for _, p := range pprof.Profiles() {
@@ -152,19 +180,19 @@ func (a Addon) Run() {
 
 	// Stremio endpoints
 
-	s.HandleFunc("/manifest.json", createManifestHandler(a.manifest))
+	s.HandleFunc("/manifest.json", createManifestHandler(a.manifest, logger))
 	if a.catalogHandlers != nil {
-		s.HandleFunc("/catalog/{type}/{id}.json", createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs))
+		s.HandleFunc("/catalog/{type}/{id}.json", createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs, logger))
 	}
 	if a.streamHandlers != nil {
-		s.HandleFunc("/stream/{type}/{id}.json", createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams))
+		s.HandleFunc("/stream/{type}/{id}.json", createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger))
 	}
 
 	// Additional endpoints
 
 	// Root redirects to website
 	if a.opts.RedirectURL != "" {
-		s.HandleFunc("/", createRootHandler(a.opts.RedirectURL))
+		s.HandleFunc("/", createRootHandler(a.opts.RedirectURL, logger))
 	}
 
 	addr := a.opts.BindAddr + ":" + strconv.Itoa(a.opts.Port)
@@ -178,27 +206,19 @@ func (a Addon) Run() {
 		MaxHeaderBytes: 1 * 1000, // 1 KB
 	}
 
-	log.Info("Finished setting up server")
+	logger.Info("Finished setting up server")
 
 	stopping := false
 	stoppingPtr := &stopping
 
-	log.WithField("address", addr).Info("Starting server")
+	logger.Info("Starting server", zap.String("address", addr))
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			if !*stoppingPtr {
-				log.WithError(err).Fatal("Couldn't start server")
+				logger.Fatal("Couldn't start server", zap.Error(err))
 			} else {
-				log.WithError(err).Fatal("Error in srv.ListenAndServe() during server shutdown (probably context deadline expired before the server could shutdown cleanly)")
+				logger.Fatal("Error in srv.ListenAndServe() during server shutdown (probably context deadline expired before the server could shutdown cleanly)", zap.Error(err))
 			}
-		}
-	}()
-
-	// Timed logger for easier debugging with logs
-	go func() {
-		for {
-			log.Trace("...")
-			time.Sleep(time.Second)
 		}
 	}()
 
@@ -208,22 +228,37 @@ func (a Addon) Run() {
 	// Accept SIGINT (Ctrl+C) and SIGTERM (`docker stop`)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	sig := <-c
-	log.WithField("signal", sig).Info("Received signal, shutting down server...")
+	logger.Info("Received signal, shutting down server...", zap.Stringer("signal", sig))
 	*stoppingPtr = true
 	// Create a deadline to wait for. `docker stop` gives us 10 seconds.
 	// No need to get the cancel func and defer calling it, because srv.Shutdown() will consider the timeout from the context.
 	ctx, _ := context.WithTimeout(context.Background(), 9*time.Second)
 	// Doesn't block if no connections, but will otherwise wait until the timeout deadline
 	if err := srv.Shutdown(ctx); err != nil {
-		log.WithError(err).Fatal("Error shutting down server")
+		logger.Fatal("Error shutting down server", zap.Error(err))
 	}
-	log.Info("Finished shutting down server")
+	logger.Info("Finished shutting down server")
 }
 
-func setLogLevel(logLevel string) {
-	logrusLevel, err := log.ParseLevel(logLevel)
-	if err != nil {
-		log.WithField("logLevel", logLevel).Fatal("Unknown logLevel")
+// Logger returns the addon's logger.
+// It's recommended to use this logger for logging in addons
+// so that the logging output is consistent.
+// You can also change its configuration this way,
+// as it's a pointer to the logger that's used by the SDK.
+func (a Addon) Logger() *zap.Logger {
+	return a.logger
+}
+
+func parseZapLevel(logLevel string) (zapcore.Level, error) {
+	switch logLevel {
+	case "debug":
+		return zapcore.DebugLevel, nil
+	case "info":
+		return zapcore.InfoLevel, nil
+	case "warn":
+		return zapcore.WarnLevel, nil
+	case "error":
+		return zapcore.ErrorLevel, nil
 	}
-	log.SetLevel(logrusLevel)
+	return 0, errors.New(`unknown log level - only knows ["debug", "info", "warn", "error"]`)
 }
