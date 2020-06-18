@@ -50,8 +50,6 @@ Full examples can be found in [examples](./examples). Here's a part of the one f
 package main
 
 import (
-    "log"
-
     "github.com/deflix-tv/go-stremio"
 )
 
@@ -69,7 +67,7 @@ func main() {
 
     addon, err := stremio.NewAddon(manifest, nil, streamHandlers, stremio.Options{Port: 8080})
     if err != nil {
-        log.Fatalf("Couldn't create addon: %v", err)
+        addon.Logger().Sugar().Fatalf("Couldn't create addon: %v", err)
     }
 
     addon.Run()
@@ -107,7 +105,7 @@ Some reasons why you might want to consider developing an addon in Go with this 
 Criterium|Node.js addon|Go addon
 ---------|--------|-------------
 Direct SDK dependencies|9|4
-Transitive SDK dependencies|~100|1
+Transitive SDK dependencies|~100|2
 Size of a deployable addon|20 MB|8 MB
 Number of artifacts to deploy|depends|1
 Runtime dependencies|Node.js|-

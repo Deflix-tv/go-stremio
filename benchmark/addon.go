@@ -1,8 +1,6 @@
 package main
 
 import (
-	"log"
-
 	"github.com/deflix-tv/go-stremio"
 )
 
@@ -38,7 +36,7 @@ func main() {
 
 	addon, err := stremio.NewAddon(manifest, nil, streamHandlers, stremio.Options{BindAddr: "0.0.0.0", Port: 7000, DisableRequestLogging: true})
 	if err != nil {
-		log.Fatalf("Couldn't create addon: %v", err)
+		addon.Logger().Sugar().Fatalf("Couldn't create addon: %v", err)
 	}
 
 	addon.Run()
