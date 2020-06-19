@@ -123,6 +123,8 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	}
 	logConfig := zap.NewDevelopmentConfig()
 	logConfig.Level = zap.NewAtomicLevelAt(logLevel)
+	// Deactivate stacktraces for warn level.
+	logConfig.Development = false
 	// Mix between zap's development and production EncoderConfig and other changes.
 	logConfig.EncoderConfig = zapcore.EncoderConfig{
 		TimeKey:        "ts",
@@ -135,6 +137,7 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		EncodeLevel:    zapcore.CapitalLevelEncoder,
 		EncodeTime:     zapcore.RFC3339TimeEncoder,
 		EncodeDuration: zapcore.StringDurationEncoder,
+		EncodeCaller:   nil,
 	}
 	logger, err := logConfig.Build()
 	if err != nil {
