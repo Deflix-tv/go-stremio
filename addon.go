@@ -156,6 +156,8 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 // Run starts the remote addon. It sets up an HTTP server that handles requests to "/manifest.json" etc. and gracefully handles shutdowns.
 func (a Addon) Run() {
 	logger := a.logger
+	defer logger.Sync()
+
 	logger.Info("Setting up server...")
 	r := mux.NewRouter()
 	s := r.Methods("GET").Subrouter()
