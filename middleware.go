@@ -1,80 +1,63 @@
 package stremio
 
 import (
-	"context"
-	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gorilla/handlers"
+	"github.com/gofiber/cors"
+	"github.com/gofiber/fiber"
 	"go.uber.org/zap"
 )
 
-func timerMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rCtx := r.Context()
-		newReq := r.WithContext(context.WithValue(rCtx, "start", time.Now()))
-		// Call the next handler, which can be another middleware in the chain, or the final handler.
-		next.ServeHTTP(w, newReq)
-	})
-}
+func corsMiddleware() func(*fiber.Ctx) {
+	config := cors.Config{
+		// Headers as listed by the Stremio example addon.
+		//
+		// According to logs an actual stream request sends these headers though:
+		//   Header:map[
+		// 	  Accept:[*/*]
+		// 	  Accept-Encoding:[gzip, deflate, br]
+		// 	  Connection:[keep-alive]
+		// 	  Origin:[https://app.strem.io]
+		// 	  User-Agent:[Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.9.9 Chrome/56.0.2924.122 Safari/537.36 StremioShell/4.4.106]
+		// ]
+		AllowHeaders: []string{
+			"Accept",
+			"Accept-Language",
+			"Content-Type",
+			"Origin", // Not "safelisted" in the specification
 
-func createCORSmiddleware() func(http.Handler) http.Handler {
-	// Headers as listed by the Stremio example addon.
-	//
-	// According to logs an actual stream request sends these headers though:
-	//   Header:map[
-	// 	  Accept:[*/*]
-	// 	  Accept-Encoding:[gzip, deflate, br]
-	// 	  Connection:[keep-alive]
-	// 	  Origin:[https://app.strem.io]
-	// 	  User-Agent:[Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.9.9 Chrome/56.0.2924.122 Safari/537.36 StremioShell/4.4.106]
-	// ]
-	headersOk := handlers.AllowedHeaders([]string{
-		"Accept",
-		"Accept-Language",
-		"Content-Type",
-		"Origin", // Not "safelisted" in the specification
-
-		// Non-default for gorilla/handlers CORS handling
-		"Accept-Encoding",
-		"Content-Language", // "Safelisted" in the specification
-		"X-Requested-With",
-	})
-	originsOk := handlers.AllowedOrigins([]string{"*"})
-	methodsOk := handlers.AllowedMethods([]string{"GET"})
-
-	corsHandler := handlers.CORS(originsOk, headersOk, methodsOk)
-
-	return func(next http.Handler) http.Handler {
-		return corsHandler(next)
+			// Non-default for gorilla/handlers CORS handling
+			"Accept-Encoding",
+			"Content-Language", // "Safelisted" in the specification
+			"X-Requested-With",
+		},
+		AllowMethods: []string{"GET"},
+		AllowOrigins: []string{"*"},
 	}
+	return cors.New(config)
 }
 
-var recoveryMiddleware = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))
-
-func createLoggingMiddleware(logRequests bool, logger *zap.Logger) func(http.Handler) http.Handler {
+func createLoggingMiddleware(logRequests bool, logger *zap.Logger) func(*fiber.Ctx) {
 	if logRequests {
-		return func(before http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				rCtx := r.Context()
-				// First call the *before* handler!
-				before.ServeHTTP(w, r)
-				// Then log
-				reqStart := rCtx.Value("start").(time.Time)
-				duration := time.Since(reqStart).Milliseconds()
-				durationString := strconv.FormatInt(duration, 10) + "ms"
+		return func(c *fiber.Ctx) {
+			start := time.Now()
+			// First call the other handlers in the chain!
+			c.Next()
+			// Then log
+			duration := time.Since(start).Milliseconds()
+			durationString := strconv.FormatInt(duration, 10) + "ms"
 
-				logger.Info("Handled request",
-					zap.String("method", r.Method),
-					zap.Stringer("url", r.URL),
-					zap.String("remoteAddr", r.RemoteAddr),
-					zap.String("userAgent", r.Header.Get("User-Agent")),
-					zap.String("duration", durationString))
-			})
+			logger.Info("Handled request",
+				zap.String("method", c.Method()),
+				zap.String("url", c.OriginalURL()),
+				zap.String("ip", c.IP()),
+				zap.Strings("forwardedFor", c.IPs()),
+				zap.String("userAgent", c.Get(fiber.HeaderUserAgent)),
+				zap.String("duration", durationString))
 		}
 	}
-	return func(next http.Handler) http.Handler {
-		return next
+	return func(c *fiber.Ctx) {
+		c.Next()
 	}
 }

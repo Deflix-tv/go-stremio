@@ -8,40 +8,35 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/gorilla/mux"
+	"github.com/gofiber/fiber"
 	"go.uber.org/zap"
 )
 
-func createHealthHandler(logger *zap.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func createHealthHandler(logger *zap.Logger) func(*fiber.Ctx) {
+	return func(c *fiber.Ctx) {
 		logger.Debug("healthHandler called")
-
-		if _, err := w.Write([]byte("OK")); err != nil {
-			logger.Error("Couldn't write response", zap.Error(err))
-		}
+		c.SendString("OK")
 	}
 }
 
-func createManifestHandler(manifest Manifest, logger *zap.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func createManifestHandler(manifest Manifest, logger *zap.Logger) func(*fiber.Ctx) {
+	return func(c *fiber.Ctx) {
 		logger.Debug("manifestHandler called")
 
 		resBody, err := json.Marshal(manifest)
 		if err != nil {
 			logger.Error("Couldn't marshal manifest", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
+			c.Status(fiber.StatusInternalServerError)
 			return
 		}
 
 		logger.Debug("Responding", zap.ByteString("body", resBody))
-		w.Header().Set("Content-Type", "application/json")
-		if _, err := w.Write(resBody); err != nil {
-			logger.Error("Couldn't write response", zap.Error(err))
-		}
+		c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+		c.SendBytes(resBody)
 	}
 }
 
-func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger) http.HandlerFunc {
+func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger) func(*fiber.Ctx) {
 	handlers := make(map[string]handler, len(catalogHandlers))
 	for k, v := range catalogHandlers {
 		handlers[k] = func(id string) (interface{}, error) {
@@ -51,7 +46,7 @@ func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge ti
 	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic, handleEtag, logger)
 }
 
-func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger) http.HandlerFunc {
+func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger) func(*fiber.Ctx) {
 	handlers := make(map[string]handler, len(streamHandlers))
 	for k, v := range streamHandlers {
 		handlers[k] = func(id string) (interface{}, error) {
@@ -63,7 +58,7 @@ func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.
 
 type handler func(id string) (interface{}, error)
 
-func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger) http.HandlerFunc {
+func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger) func(*fiber.Ctx) {
 	handlerName = handlerName + "Handler"
 	handlerLogMsg := handlerName + " called"
 
@@ -80,12 +75,11 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 
 	logger = logger.With(zap.String("handler", handlerName))
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(c *fiber.Ctx) {
 		logger.Debug(handlerLogMsg)
 
-		params := mux.Vars(r)
-		requestedType := params["type"]
-		requestedID := params["id"]
+		requestedType := c.Params("type")
+		requestedID := c.Params("id")
 
 		zapLogType, zapLogID := zap.String("requestedType", requestedType), zap.String("requestedID", requestedID)
 
@@ -93,7 +87,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 		handler, ok := handlers[requestedType]
 		if !ok {
 			logger.Warn("Got request for unhandled type; returning 404")
-			w.WriteHeader(http.StatusNotFound)
+			c.Status(http.StatusNotFound)
 			return
 		}
 
@@ -102,10 +96,10 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			switch err {
 			case NotFound:
 				logger.Warn("Got request for unhandled media ID; returning 404")
-				w.WriteHeader(http.StatusNotFound)
+				c.Status(http.StatusNotFound)
 			default:
 				logger.Error("Addon returned error", zap.Error(err), zapLogType, zapLogID)
-				w.WriteHeader(http.StatusInternalServerError)
+				c.Status(http.StatusInternalServerError)
 			}
 			return
 		}
@@ -113,7 +107,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 		resBody, err := json.Marshal(res)
 		if err != nil {
 			logger.Error("Couldn't marshal response", zap.Error(err), zapLogType, zapLogID)
-			w.WriteHeader(http.StatusInternalServerError)
+			c.Status(http.StatusInternalServerError)
 			return
 		}
 
@@ -122,7 +116,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 		if handleEtag {
 			hash := xxhash.Sum64(resBody)
 			eTag = strconv.FormatUint(hash, 16)
-			ifNoneMatch := r.Header.Get("If-None-Match")
+			ifNoneMatch := c.Get("If-None-Match")
 			zapLogIfNoneMatch, zapLogETagServer := zap.String("If-None-Match", ifNoneMatch), zap.String("ETag", eTag)
 			modified := false
 			if ifNoneMatch == "*" {
@@ -134,9 +128,9 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 				logger.Debug("ETag matches, responding with 304", zapLogIfNoneMatch, zapLogETagServer, zapLogType, zapLogID)
 			}
 			if !modified {
-				w.Header().Set("Cache-Control", cacheHeaderVal) // Required according to https://tools.ietf.org/html/rfc7232#section-4.1
-				w.Header().Set("ETag", eTag)                    // We set it to make sure a client doesn't overwrite its cached ETag with an empty string or so.
-				w.WriteHeader(http.StatusNotModified)
+				c.Set(fiber.HeaderCacheControl, cacheHeaderVal) // Required according to https://tools.ietf.org/html/rfc7232#section-4.1
+				c.Set(fiber.HeaderETag, eTag)                   // We set it to make sure a client doesn't overwrite its cached ETag with an empty string or so.
+				c.Status(http.StatusNotModified)
 				return
 			}
 		}
@@ -149,25 +143,23 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 		}
 
 		logger.Debug("Responding", zap.ByteString("body", resBody), zapLogType, zapLogID)
-		w.Header().Set("Content-Type", "application/json")
+		c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 		if cacheHeaderVal != "" {
-			w.Header().Set("Cache-Control", cacheHeaderVal)
+			c.Set(fiber.HeaderCacheControl, cacheHeaderVal)
 			if handleEtag {
-				w.Header().Set("ETag", eTag)
+				c.Set(fiber.HeaderETag, eTag)
 			}
 		}
-		if _, err := w.Write(resBody); err != nil {
-			logger.Error("Coldn't write response", zap.Error(err), zapLogType, zapLogID)
-		}
+		c.SendBytes(resBody)
 	}
 }
 
-func createRootHandler(redirectURL string, logger *zap.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func createRootHandler(redirectURL string, logger *zap.Logger) func(*fiber.Ctx) {
+	return func(c *fiber.Ctx) {
 		logger.Debug("rootHandler called")
 
 		logger.Debug("Responding with redirect", zap.String("redirectURL", redirectURL))
-		w.Header().Set("Location", redirectURL)
-		w.WriteHeader(http.StatusMovedPermanently)
+		c.Set(fiber.HeaderLocation, redirectURL)
+		c.Status(http.StatusMovedPermanently)
 	}
 }
