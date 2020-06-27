@@ -77,6 +77,7 @@ type Options struct {
 }
 
 // DefaultOptions is an Options object with default values.
+// For fields that aren't set here the zero value is the default value.
 var DefaultOptions = Options{
 	BindAddr: "localhost",
 	Port:     8080,
