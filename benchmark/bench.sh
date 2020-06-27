@@ -28,12 +28,17 @@ fi
 # Determine number of CPU cores
 NUM_CPUS=$(grep -c ^processor /proc/cpuinfo)
 
+# Wake up the service :)
+echo "Waking up service :)"
+wrk -t${NUM_CPUS} -c1000 -d5s -R1000 --latency ${TARGET_URL} > /dev/null
+sleep 5s
+
 # Run wrk2 until it reaches a p99 latency of 100.
-# First come near the maximum with running for just 5s
+# First come near the maximum with running for just 10s
 REQUEST_RATE=1000
 while true; do
-    echo "Testing for 5s with ${REQUEST_RATE} requests/s"
-    P99=$(wrk -t${NUM_CPUS} -c1000 -d5s -R${REQUEST_RATE} --latency ${TARGET_URL} | grep "99.000%" | tr -d " " | cut -d "%" -f2)
+    echo "Testing for 10s with ${REQUEST_RATE} requests/s"
+    P99=$(wrk -t${NUM_CPUS} -c1000 -d10s -R${REQUEST_RATE} --latency ${TARGET_URL} | grep "99.000%" | tr -d " " | cut -d "%" -f2)
     # P99 is no ms anymore, but s?
     if [[ ${P99} != *"ms"* ]]; then
         break
@@ -43,13 +48,13 @@ while true; do
         break
     fi
     REQUEST_RATE=$(( ${REQUEST_RATE} + 1000 ))
-    sleep 1s
-done
-# Then test more detailed with running for 30s (this sometimes leads to an additional 1000 requests/s)
-while true; do
     sleep 5s
-    echo "Testing for 30s with ${REQUEST_RATE} requests/s"
-    P99=$(wrk -t${NUM_CPUS} -c1000 -d30s -R${REQUEST_RATE} --latency ${TARGET_URL} | grep "99.000%" | tr -d " " | cut -d "%" -f2)
+done
+# Then test more detailed with running for 60s (which depending on the deviation can lead to a couple of thousands of extra requests/s)
+while true; do
+    sleep 10s
+    echo "Testing for 60s with ${REQUEST_RATE} requests/s"
+    P99=$(wrk -t${NUM_CPUS} -c1000 -d60s -R${REQUEST_RATE} --latency ${TARGET_URL} | grep "99.000%" | tr -d " " | cut -d "%" -f2)
     # P99 is no ms anymore, but s?
     if [[ ${P99} != *"ms"* ]]; then
         break
