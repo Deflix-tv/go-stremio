@@ -34,13 +34,19 @@ It provides the most important parts of the Node.js SDK and depending on the req
 - [x] CORS middleware to allow requests from Stremio
 - [x] Health check endpoint
 - [x] Optional profiling endpoints (for `go pprof`)
-- [x] Request logging
+- [x] Optional request logging
 - [x] Cache control and ETag handling
 
 Upcoming features:
 
 - [ ] Custom user data in URLs
 - [ ] Custom service endpoints
+
+Current *non*-features, as they're usually part of a reverse proxy deployed in front of the service:
+
+- TLS termination (for using HTTP*S*)
+- Rate limiting (against DoS attacks)
+- Compression (like gzip)
 
 ## Example
 
@@ -65,7 +71,7 @@ var (
 func main() {
     streamHandlers := map[string]stremio.StreamHandler{"movie": movieHandler}
 
-    addon, err := stremio.NewAddon(manifest, nil, streamHandlers, stremio.Options{Port: 8080})
+    addon, err := stremio.NewAddon(manifest, nil, streamHandlers, stremio.DefaultOptions)
     if err != nil {
         addon.Logger().Sugar().Fatalf("Couldn't create addon: %v", err)
     }
@@ -103,40 +109,49 @@ func movieHandler(id string) ([]stremio.StreamItem, error) {
 Some reasons why you might want to consider developing an addon in Go with this SDK:
 
 Criterium|Node.js addon|Go addon
----------|--------|-------------
-Direct SDK dependencies|9|4
-Transitive SDK dependencies|~100|2
-Size of a deployable addon|20 MB|8 MB
-Number of artifacts to deploy|depends|1
+---------|-------------|--------
+Direct SDK dependencies|9|5
+Transitive SDK dependencies|85|8
+Size of a runnable addon|27 MB¹|15 MB
+Number of artifacts to deploy|depends²|1
 Runtime dependencies|Node.js|-
 Concurrency|Single-threaded|Multi-threaded
+
+¹) `du -h --max-depth=0 node_modules`  
+²) All your JavaScript files and the `package.json` if you can install the depencencies with `npm` on the server, otherwise (like in a Docker container) you also need all the `node_modules`, which are hundreds to thousands of files.  
 
 Looking at the performance it depends a lot on what your addon does. Due to the single-threaded nature of Node.js, the more CPU-bound tasks your addon does, the bigger the performance difference will be (in favor of Go). Here we compare the simplest possible addon to be able to compare just the SDKs and not any additional overhead (like DB access):
 
 Criterium|Node.js addon|Go addon
----------|--------|-------------
-Startup time to 1st request¹|920-1300ms|5-20ms
-Max rps² @ 100 users|5000|5000
-Max rps² @ 1000 users<br>(2 core, 2 GB RAM, 5 €/mo)|4000|14000
-Max rps² @ 1000 users<br>(2 core, 2 GB RAM, 10 €/mo)|7000|21000
-Max rps² @ 1000 users<br>(8 dedicated cores, 32 GB RAM, 100 €/mo)|17000|43000
-Memory usage @ 100 users³|70-80 MB|10-20 MB
-Memory usage @ 1000 users³|90-100 MB|30-40 MB
+---------|-------------|--------
+Startup time to 1st request¹|150-230ms|5-20ms
+Max rps² @ 1000 connections|Local³: 6,000<br>Remote⁴: 3,000|Local³: 59,000<br>Remote⁴: 58,000
+Memory usage @ 1000 connections|Idle: 35 MB<br>Load⁵: 70 MB|Idle: 10 MB<br>Load⁵: 45 MB
 
-¹) Measured using [ttfok](https://github.com/doingodswork/ttfok) and the code in [benchmark](benchmark)  
+¹) Measured using [ttfok](https://github.com/doingodswork/ttfok) and the code in [benchmark](benchmark). This metric is relevant in case you want to use a "serverless functions" service (like [AWS Lambda](https://aws.amazon.com/lambda/) or [Vercel](https://vercel.com/) (former ZEIT Now)) that doesn't keep your service running between requests.  
 ²) Max number of requests per second where the p99 latency is still < 100ms  
-³) At a request rate *half* of what we measured as maximum
+³) The load testing tool ran on a different server, but in the same datacenter and the requests were sent within a private network  
+⁴) The load testing tool ran on a different server *in a different datacenter of another cloud provider in another city* for more real world-like circumstances  
+⁵) At a request rate *half* of what we measured as maximum  
 
-The load tests were run under the following cirumstances:
+The load tests were run under the following circumstances:
 
 - We used the addon code, load testing tool and setup described in [benchmark](benchmark)
-- The Load testing tool ran on a different server *in a different datacenter in another country* for more real world-like circumstances
-- The load tests ran for 15s, with previous warmup
+- We ran the service on a [DigitalOcean](https://www.digitalocean.com/) "Droplet" with 2 cores and 2 GB RAM, which costs $15/month
+- The load tests ran for 60s, with previous warmup  
+- Virtualized servers of cloud providers vary in performance throughout the week and day, even when using the exact same machines, because the CPU cores of the virtualization host are shared between multiple VPS. We conducted the Node.js and Go service tests at the same time so their performance difference doesn't come from the performance variation due to running at different times.  
+- The client server used to run the load testing tool was high-powered (4-8 *dedicated* cores, 8-32 GB RAM)
+
+Additional observations:
+
+- The Go service's response times were generally lower across all request rates  
+- The Go service's response times had a much lower deviation, i.e. they were more stable. With less than 60s of time for the load test the Node.js service fared even worse, because outliers lead to a higher p99 latency.  
+- We also tested on a lower-powered server by a cheap cloud provider (also 2 core, 2 GB RAM, but the CPU was generally worse). In this case the difference between the Node.js and the Go service was even higher. The Go service is perfectly fitted for scaling out with multiple cheap servers.  
 
 > Note:
 >
-> - This Go SDK is at its very beginning. Some features will be added in the future that might decrease its performance, while others will increase it.
-> - The Node.js addon was run as a single instance. You can do more complex deployments with a load balancer like [HAProxy](https://www.haproxy.org/) and multiple instances of the same Node.js service on a single machine to take advantage of multiple CPU cores.
+> - This Go SDK is at its very beginning. Some features will be added in the future that might decrease its performance, while others will increase it.  
+> - The Node.js addon was run as a single instance. You can do more complex deployments with a load balancer like [HAProxy](https://www.haproxy.org/) and multiple instances of the same Node.js service on a single machine to take advantage of multiple CPU cores. But then you should also activate preforking in the Go addon for using several OS processes in parallel, which we didn't do.  
 
 ## Related projects
 
