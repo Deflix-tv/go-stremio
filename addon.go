@@ -1,10 +1,8 @@
 package stremio
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	netpprof "net/http/pprof"
 	"os"
 	"os/signal"
@@ -13,8 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
+	"github.com/gofiber/adaptor"
+	"github.com/gofiber/fiber"
+	"github.com/gofiber/fiber/middleware"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -160,56 +159,60 @@ func (a Addon) Run() {
 	defer logger.Sync()
 
 	logger.Info("Setting up server...")
-	r := mux.NewRouter()
-	s := r.Methods("GET").Subrouter()
-	s.Use(timerMiddleware,
-		createCORSmiddleware(), // Stremio doesn't show stream responses when no CORS middleware is used!
-		handlers.ProxyHeaders,
-		recoveryMiddleware,
-		createLoggingMiddleware(!a.opts.DisableRequestLogging, logger))
-	s.HandleFunc("/health", createHealthHandler(logger))
+	app := fiber.New(&fiber.Settings{
+		ErrorHandler: func(ctx *fiber.Ctx, err error) {
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+				logger.Error("Fiber's error handler was called", zap.Error(e))
+			} else {
+				logger.Error("Fiber's error handler was called", zap.Error(err))
+			}
+			ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
+			ctx.Status(code).SendString("An internal server error occurred")
+		},
+		BodyLimit:             0,
+		DisableStartupMessage: true,
+		ReadTimeout:           5 * time.Second,
+		WriteTimeout:          15 * time.Second,
+		IdleTimeout:           60 * time.Second, // 1m
+		ReadBufferSize:        1000,             // 1 KB
+	})
+	app.Use(middleware.Recover(),
+		createLoggingMiddleware(!a.opts.DisableRequestLogging, logger),
+		corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
+	app.Get("/health", createHealthHandler(logger))
 	// Optional profiling
 	if a.opts.Profiling {
-		for _, p := range pprof.Profiles() {
-			s.HandleFunc("/debug/pprof/"+p.Name(), netpprof.Handler(p.Name()).ServeHTTP)
-		}
-		s.HandleFunc("/debug/pprof/cmdline", netpprof.Cmdline)
-		s.HandleFunc("/debug/pprof/profile", netpprof.Profile)
-		s.HandleFunc("/debug/pprof/trace", netpprof.Trace)
+		group := app.Group("/debug/pprof")
 
-		s.HandleFunc("/debug/pprof/", netpprof.Index)
-		s.HandleFunc("/debug/pprof", func(rw http.ResponseWriter, r *http.Request) {
-			rw.Header().Set("Location", "/debug/pprof/")
-			rw.WriteHeader(http.StatusMovedPermanently)
+		group.Get("/", func(c *fiber.Ctx) {
+			c.Set(fiber.HeaderContentType, fiber.MIMETextHTML)
+			adaptor.HTTPHandlerFunc(netpprof.Index)(c)
 		})
+		for _, p := range pprof.Profiles() {
+			group.Get("/"+p.Name(), adaptor.HTTPHandler(netpprof.Handler(p.Name())))
+		}
+		group.Get("/cmdline", adaptor.HTTPHandlerFunc(netpprof.Cmdline))
+		group.Get("/profile", adaptor.HTTPHandlerFunc(netpprof.Profile))
+		group.Get("/trace", adaptor.HTTPHandlerFunc(netpprof.Trace))
 	}
 
 	// Stremio endpoints
 
-	s.HandleFunc("/manifest.json", createManifestHandler(a.manifest, logger))
+	app.Get("/manifest.json", createManifestHandler(a.manifest, logger))
 	if a.catalogHandlers != nil {
-		s.HandleFunc("/catalog/{type}/{id}.json", createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs, logger))
+		app.Get("/catalog/:type/:id.json", createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs, logger))
 	}
 	if a.streamHandlers != nil {
-		s.HandleFunc("/stream/{type}/{id}.json", createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger))
+		app.Get("/stream/:type/:id.json", createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger))
 	}
 
 	// Additional endpoints
 
 	// Root redirects to website
 	if a.opts.RedirectURL != "" {
-		s.HandleFunc("/", createRootHandler(a.opts.RedirectURL, logger))
-	}
-
-	addr := a.opts.BindAddr + ":" + strconv.Itoa(a.opts.Port)
-	srv := &http.Server{
-		Addr:    addr,
-		Handler: s,
-		// Timeouts to avoid Slowloris attacks
-		ReadTimeout:    time.Second * 5,
-		WriteTimeout:   time.Second * 15,
-		IdleTimeout:    time.Second * 60,
-		MaxHeaderBytes: 1 * 1000, // 1 KB
+		app.Get("/", createRootHandler(a.opts.RedirectURL, logger))
 	}
 
 	logger.Info("Finished setting up server")
@@ -217,9 +220,10 @@ func (a Addon) Run() {
 	stopping := false
 	stoppingPtr := &stopping
 
+	addr := a.opts.BindAddr + ":" + strconv.Itoa(a.opts.Port)
 	logger.Info("Starting server", zap.String("address", addr))
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
+		if err := app.Listen(addr); err != nil {
 			if !*stoppingPtr {
 				logger.Fatal("Couldn't start server", zap.Error(err))
 			} else {
@@ -236,11 +240,8 @@ func (a Addon) Run() {
 	sig := <-c
 	logger.Info("Received signal, shutting down server...", zap.Stringer("signal", sig))
 	*stoppingPtr = true
-	// Create a deadline to wait for. `docker stop` gives us 10 seconds.
-	// No need to get the cancel func and defer calling it, because srv.Shutdown() will consider the timeout from the context.
-	ctx, _ := context.WithTimeout(context.Background(), 9*time.Second)
-	// Doesn't block if no connections, but will otherwise wait until the timeout deadline
-	if err := srv.Shutdown(ctx); err != nil {
+	// Graceful shutdown, waiting for all current requests to finish without accepting new ones.
+	if err := app.Shutdown(); err != nil {
 		logger.Fatal("Error shutting down server", zap.Error(err))
 	}
 	logger.Info("Finished shutting down server")
