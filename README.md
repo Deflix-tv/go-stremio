@@ -147,6 +147,7 @@ Additional observations:
 - The Go service's response times were generally lower across all request rates  
 - The Go service's response times had a much lower deviation, i.e. they were more stable. With less than 60s of time for the load test the Node.js service fared even worse, because outliers lead to a higher p99 latency.  
 - We also tested on a lower-powered server by a cheap cloud provider (also 2 core, 2 GB RAM, but the CPU was generally worse). In this case the difference between the Node.js and the Go service was even higher. The Go service is perfectly fitted for scaling out with multiple cheap servers.  
+- We also tested with different amounts of connections. With more connections the difference between the Node.js and the Go service was also higher. In a production deployment you want to be able to serve as many users as possible, so this goes in favor of the Go service as well.  
 
 > Note:
 >
