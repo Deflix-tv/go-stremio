@@ -69,9 +69,12 @@ type MetaPreviewItem struct {
 	PosterShape string `json:"posterShape,omitempty"`
 
 	// Optional, used for the "Discover" page sidebar
-	Links       []MetaLinkItem `json:"links,omitempty"` // For genres, director, cast, etc.
+	Genres      []string       `json:"genres,omitempty"`   // Will be replaced by Links at some point
+	Director    []string       `json:"director,omitempty"` // Will be replaced by Links at some point
+	Cast        []string       `json:"cast,omitempty"`     // Will be replaced by Links at some point
+	Links       []MetaLinkItem `json:"links,omitempty"`    // For genres, director, cast and potentially more. Not fully supported by Stremio yet!
 	IMDbRating  string         `json:"imdbRating,omitempty"`
-	ReleaseInfo string         `json:"releaseInfo,omitempty"`
+	ReleaseInfo string         `json:"releaseInfo,omitempty"` // E.g. "2000" for movies and "2000-2014" or "2000-" for TV shows
 	Description string         `json:"description,omitempty"`
 }
 
@@ -83,13 +86,16 @@ type MetaItem struct {
 	Name string `json:"name"`
 
 	// Optional
-	Links       []MetaLinkItem `json:"links,omitempty"`  // For genres, director, cast, etc.
-	Poster      string         `json:"poster,omitempty"` // URL
+	Genres      []string       `json:"genres,omitempty"`   // Will be replaced by Links at some point
+	Director    []string       `json:"director,omitempty"` // Will be replaced by Links at some point
+	Cast        []string       `json:"cast,omitempty"`     // Will be replaced by Links at some point
+	Links       []MetaLinkItem `json:"links,omitempty"`    // For genres, director, cast and potentially more. Not fully supported by Stremio yet!
+	Poster      string         `json:"poster,omitempty"`   // URL
 	PosterShape string         `json:"posterShape,omitempty"`
 	Background  string         `json:"background,omitempty"` // URL
 	Logo        string         `json:"logo,omitempty"`       // URL
 	Description string         `json:"description,omitempty"`
-	ReleaseInfo string         `json:"releaseInfo,omitempty"`
+	ReleaseInfo string         `json:"releaseInfo,omitempty"` // E.g. "2000" for movies and "2000-2014" or "2000-" for TV shows
 	IMDbRating  string         `json:"imdbRating,omitempty"`
 	Released    string         `json:"released,omitempty"` // Must be ISO 8601, e.g. "2010-12-06T05:00:00.000Z"
 	Videos      []VideoItem    `json:"videos,omitempty"`
@@ -105,6 +111,9 @@ type MetaItem struct {
 	// TODO: behaviorHints
 }
 
+// MetaLinkItem links to a page within Stremio.
+// It will at some point replace the usage of `genres`, `director` and `cast`.
+// Note: It's not fully supported by Stremio yet (not fully on PC and not at all on Android)!
 type MetaLinkItem struct {
 	Name     string `json:"name"`
 	Category string `json:"category"`
