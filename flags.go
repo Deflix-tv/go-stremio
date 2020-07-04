@@ -25,13 +25,13 @@ func (s *stringValue) Get() interface{} { return string(*s) }
 func (s *stringValue) String() string { return string(*s) }
 
 // usage prints the usage of the flags an SDK user sets.
-// It skips printing Fiber's `-prefork` and `-child`, that it defines as of Fiber v1.12.0.
+// It skips printing Fiber's `-prefork` and `-prefork-child`, that it defines as of Fiber v1.12.4.
 // This code is based on the stdlib with the only change to skip those two flags.
 func usage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
 	flag.CommandLine.VisitAll(func(f *flag.Flag) {
 		// Skip printing usage info for Fiber's flags
-		if f.Name == "prefork" || f.Name == "child" {
+		if f.Name == "prefork" || f.Name == "prefork-child" {
 			return
 		}
 
