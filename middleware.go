@@ -41,15 +41,15 @@ func corsMiddleware() func(*fiber.Ctx) {
 func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent bool) func(*fiber.Ctx) {
 	var fields []zap.Field
 	if !logIPs && !logUserAgent {
-		fields = make([]zap.Field, 3)
+		fields = make([]zap.Field, 4)
 	} else if !logIPs {
 		// Only user agent
-		fields = make([]zap.Field, 4)
+		fields = make([]zap.Field, 5)
 	} else if !logUserAgent {
 		// Only IPs
-		fields = make([]zap.Field, 5)
-	} else {
 		fields = make([]zap.Field, 6)
+	} else {
+		fields = make([]zap.Field, 7)
 	}
 
 	return func(c *fiber.Ctx) {
@@ -63,17 +63,18 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent bool) func
 		duration := time.Since(start).Milliseconds()
 		durationString := strconv.FormatInt(duration, 10) + "ms"
 
-		fields[0] = zap.String("duration", durationString)
-		fields[1] = zap.String("method", c.Method())
-		fields[2] = zap.String("url", c.OriginalURL())
+		fields[0] = zap.Int("status", c.Fasthttp.Response.StatusCode())
+		fields[1] = zap.String("duration", durationString)
+		fields[2] = zap.String("method", c.Method())
+		fields[3] = zap.String("url", c.OriginalURL())
 		if logIPs {
-			fields[3] = zap.String("ip", c.IP())
-			fields[4] = zap.Strings("forwardedFor", c.IPs())
+			fields[4] = zap.String("ip", c.IP())
+			fields[5] = zap.Strings("forwardedFor", c.IPs())
 		} else if logUserAgent {
-			fields[3] = zap.String("userAgent", c.Get(fiber.HeaderUserAgent))
+			fields[4] = zap.String("userAgent", c.Get(fiber.HeaderUserAgent))
 		}
 		if logIPs && logUserAgent {
-			fields[5] = zap.String("userAgent", c.Get(fiber.HeaderUserAgent))
+			fields[6] = zap.String("userAgent", c.Get(fiber.HeaderUserAgent))
 		}
 
 		logger.Info("Handled request", fields...)
