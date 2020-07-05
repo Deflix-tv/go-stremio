@@ -41,9 +41,8 @@ func main() {
 	}
 
 	addon, err := stremio.NewAddon(manifest, nil, streamHandlers, options)
-	logger := addon.Logger().Sugar()
 	if err != nil {
-		logger.Fatalf("Couldn't create addon: %v", err)
+		panic(err)
 	}
 
 	addon.Run()
