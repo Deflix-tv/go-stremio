@@ -35,7 +35,8 @@ It provides the most important parts of the Node.js SDK and depending on the req
 - [x] Health check endpoint
 - [x] Optional profiling endpoints (for `go pprof`)
 - [x] Optional request logging
-- [x] Cache control and ETag handling
+- [x] Optional cache control and ETag handling
+- [x] Optional custom middleware
 
 Upcoming features:
 

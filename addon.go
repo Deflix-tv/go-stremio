@@ -93,11 +93,12 @@ var DefaultOptions = Options{
 // Addon represents a remote addon.
 // You can create one with NewAddon() and then run it with Run().
 type Addon struct {
-	manifest        Manifest
-	catalogHandlers map[string]CatalogHandler
-	streamHandlers  map[string]StreamHandler
-	opts            Options
-	logger          *zap.Logger
+	manifest          Manifest
+	catalogHandlers   map[string]CatalogHandler
+	streamHandlers    map[string]StreamHandler
+	opts              Options
+	logger            *zap.Logger
+	customMiddlewares []customMiddleware
 }
 
 func init() {
@@ -167,6 +168,17 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	}, nil
 }
 
+// AddMiddleware appends a custom middleware to the chain of existing middlewares.
+// Set path to an empty string or "/" to let the middleware apply to all routes.
+// Don't forget to call c.Next() on the Fiber context!
+func (a *Addon) AddMiddleware(path string, mw func(*fiber.Ctx)) {
+	customMW := customMiddleware{
+		path: path,
+		mw:   mw,
+	}
+	a.customMiddlewares = append(a.customMiddlewares, customMW)
+}
+
 // Run starts the remote addon. It sets up an HTTP server that handles requests to "/manifest.json" etc. and gracefully handles shutdowns.
 func (a *Addon) Run() {
 	logger := a.logger
@@ -197,6 +209,9 @@ func (a *Addon) Run() {
 		app.Use(createLoggingMiddleware(logger, !a.opts.DisableIPlogging, !a.opts.DisableUserAgentLogging))
 	}
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
+	for _, customMW := range a.customMiddlewares {
+		app.Use(customMW.path, customMW.mw)
+	}
 	app.Get("/health", createHealthHandler(logger))
 	// Optional profiling
 	if a.opts.Profiling {

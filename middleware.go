@@ -9,6 +9,11 @@ import (
 	"go.uber.org/zap"
 )
 
+type customMiddleware struct {
+	path string
+	mw   func(*fiber.Ctx)
+}
+
 func corsMiddleware() func(*fiber.Ctx) {
 	config := cors.Config{
 		// Headers as listed by the Stremio example addon.
