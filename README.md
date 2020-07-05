@@ -37,11 +37,11 @@ It provides the most important parts of the Node.js SDK and depending on the req
 - [x] Optional request logging
 - [x] Optional cache control and ETag handling
 - [x] Optional custom middleware
+- [x] Optional custom endpoints
 
 Upcoming features:
 
 - [ ] Custom user data in URLs
-- [ ] Custom service endpoints
 
 Current *non*-features, as they're usually part of a reverse proxy deployed in front of the service:
 

@@ -12,6 +12,12 @@ import (
 	"go.uber.org/zap"
 )
 
+type customEndpoint struct {
+	method  string
+	path    string
+	handler func(*fiber.Ctx)
+}
+
 func createHealthHandler(logger *zap.Logger) func(*fiber.Ctx) {
 	return func(c *fiber.Ctx) {
 		logger.Debug("healthHandler called")

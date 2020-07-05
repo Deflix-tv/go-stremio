@@ -99,6 +99,7 @@ type Addon struct {
 	opts              Options
 	logger            *zap.Logger
 	customMiddlewares []customMiddleware
+	customEndpoints   []customEndpoint
 }
 
 func init() {
@@ -182,6 +183,16 @@ func (a *Addon) AddMiddleware(path string, mw func(*fiber.Ctx)) {
 	a.customMiddlewares = append(a.customMiddlewares, customMW)
 }
 
+// AddEndpoint adds a custom endpoint (a route and its handler).
+func (a *Addon) AddEndpoint(method, path string, handler func(*fiber.Ctx)) {
+	customEndpoint := customEndpoint{
+		method:  method,
+		path:    path,
+		handler: handler,
+	}
+	a.customEndpoints = append(a.customEndpoints, customEndpoint)
+}
+
 // Run starts the remote addon. It sets up an HTTP server that handles requests to "/manifest.json" etc. and gracefully handles shutdowns.
 func (a *Addon) Run() {
 	logger := a.logger
@@ -247,6 +258,11 @@ func (a *Addon) Run() {
 	// Root redirects to website
 	if a.opts.RedirectURL != "" {
 		app.Get("/", createRootHandler(a.opts.RedirectURL, logger))
+	}
+
+	// Custom endpoints
+	for _, customEndpoint := range a.customEndpoints {
+		app.Add(customEndpoint.method, customEndpoint.path, customEndpoint.handler)
 	}
 
 	logger.Info("Finished setting up server")
