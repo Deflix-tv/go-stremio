@@ -107,17 +107,17 @@ func init() {
 
 // NewAddon creates a new Addon object that can be started with Run().
 // A proper manifest must be supplied, but all but one handler can be nil in case you only want to handle specific requests and opts can be the zero value of Options.
-func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, streamHandlers map[string]StreamHandler, opts Options) (Addon, error) {
+func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, streamHandlers map[string]StreamHandler, opts Options) (*Addon, error) {
 	// Precondition checks
 	if manifest.ID == "" || manifest.Name == "" || manifest.Description == "" || manifest.Version == "" {
-		return Addon{}, errors.New("An empty manifest was passed")
+		return nil, errors.New("An empty manifest was passed")
 	} else if catalogHandlers == nil && streamHandlers == nil {
-		return Addon{}, errors.New("No handler was passed")
+		return nil, errors.New("No handler was passed")
 	} else if (opts.CachePublicCatalogs && opts.CacheAgeCatalogs == 0) ||
 		(opts.CachePublicStreams && opts.CacheAgeStreams == 0) {
-		return Addon{}, errors.New("Enabling public caching only makes sense when also setting a cache age")
+		return nil, errors.New("Enabling public caching only makes sense when also setting a cache age")
 	} else if opts.DisableRequestLogging && (opts.DisableIPlogging || opts.DisableUserAgentLogging) {
-		return Addon{}, errors.New("Enabling IP or user agent logging doesn't make sense when disabling request logging")
+		return nil, errors.New("Enabling IP or user agent logging doesn't make sense when disabling request logging")
 	}
 	// Set default values
 	if opts.BindAddr == "" {
@@ -133,7 +133,7 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	// Configure logger
 	logLevel, err := parseZapLevel(opts.LogLevel)
 	if err != nil {
-		return Addon{}, fmt.Errorf("Couldn't parse log level: %w", err)
+		return nil, fmt.Errorf("Couldn't parse log level: %w", err)
 	}
 	logConfig := zap.NewDevelopmentConfig()
 	logConfig.Level = zap.NewAtomicLevelAt(logLevel)
@@ -155,10 +155,10 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	}
 	logger, err := logConfig.Build()
 	if err != nil {
-		return Addon{}, fmt.Errorf("Couldn't create logger: %w", err)
+		return nil, fmt.Errorf("Couldn't create logger: %w", err)
 	}
 
-	return Addon{
+	return &Addon{
 		manifest:        manifest,
 		catalogHandlers: catalogHandlers,
 		streamHandlers:  streamHandlers,
@@ -168,7 +168,7 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 }
 
 // Run starts the remote addon. It sets up an HTTP server that handles requests to "/manifest.json" etc. and gracefully handles shutdowns.
-func (a Addon) Run() {
+func (a *Addon) Run() {
 	logger := a.logger
 	defer logger.Sync()
 
@@ -268,7 +268,7 @@ func (a Addon) Run() {
 // so that the logging output is consistent.
 // You can also change its configuration this way,
 // as it's a pointer to the logger that's used by the SDK.
-func (a Addon) Logger() *zap.Logger {
+func (a *Addon) Logger() *zap.Logger {
 	return a.logger
 }
 
