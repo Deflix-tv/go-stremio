@@ -42,13 +42,19 @@ type Options struct {
 	// Accepts "debug", "info", "warn" and "error".
 	// Default "info".
 	LogLevel string
+	// Flag for indicating whether requests should be logged.
+	// Default false (meaning requests will be logged by default).
+	DisableRequestLogging bool
+	// Flag for indicating whether IP addresses should be logged.
+	// Default false (meaning IP addresses will be logged by default).
+	DisableIPlogging bool
+	// Flag for indicating whether the user agent header should be logged.
+	// Default false (meaning the user agent header will be logged by default).
+	DisableUserAgentLogging bool
 	// URL to redirect to when someone requests the root of the handler instead of the manifest, catalog, stream etc.
 	// When no value is set, it will lead to a "404 Not Found" response.
 	// Default "".
 	RedirectURL string
-	// Flag for indicating whether requests should be logged.
-	// Default false (meaning requests will be logged by default).
-	DisableRequestLogging bool
 	// Flag for indicating whether you want to expose URL handlers for the Go profiler.
 	// The URLs are be the standard ones: "/debug/pprof/...".
 	// Default false.
@@ -110,6 +116,8 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	} else if (opts.HandleEtagCatalogs && !opts.CachePublicCatalogs) ||
 		(opts.HandleEtagStreams && !opts.CachePublicStreams) {
 		return Addon{}, errors.New("ETags only make sense when also setting a cache age")
+	} else if opts.DisableRequestLogging && (opts.DisableIPlogging || opts.DisableUserAgentLogging) {
+		return Addon{}, errors.New("Enabling IP or user agent logging doesn't make sense when disabling request logging")
 	}
 	// Set default values
 	if opts.BindAddr == "" {
@@ -184,9 +192,11 @@ func (a Addon) Run() {
 		IdleTimeout:           60 * time.Second, // 1m
 		ReadBufferSize:        1000,             // 1 KB
 	})
-	app.Use(middleware.Recover(),
-		createLoggingMiddleware(!a.opts.DisableRequestLogging, logger),
-		corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
+	app.Use(middleware.Recover())
+	if !a.opts.DisableRequestLogging {
+		app.Use(createLoggingMiddleware(logger, !a.opts.DisableIPlogging, !a.opts.DisableUserAgentLogging))
+	}
+	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
 	app.Get("/health", createHealthHandler(logger))
 	// Optional profiling
 	if a.opts.Profiling {

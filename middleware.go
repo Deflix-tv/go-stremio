@@ -38,26 +38,44 @@ func corsMiddleware() func(*fiber.Ctx) {
 	return cors.New(config)
 }
 
-func createLoggingMiddleware(logRequests bool, logger *zap.Logger) func(*fiber.Ctx) {
-	if logRequests {
-		return func(c *fiber.Ctx) {
-			start := time.Now()
-			// First call the other handlers in the chain!
-			c.Next()
-			// Then log
-			duration := time.Since(start).Milliseconds()
-			durationString := strconv.FormatInt(duration, 10) + "ms"
-
-			logger.Info("Handled request",
-				zap.String("method", c.Method()),
-				zap.String("url", c.OriginalURL()),
-				zap.String("ip", c.IP()),
-				zap.Strings("forwardedFor", c.IPs()),
-				zap.String("userAgent", c.Get(fiber.HeaderUserAgent)),
-				zap.String("duration", durationString))
-		}
+func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent bool) func(*fiber.Ctx) {
+	var fields []zap.Field
+	if !logIPs && !logUserAgent {
+		fields = make([]zap.Field, 3)
+	} else if !logIPs {
+		// Only user agent
+		fields = make([]zap.Field, 4)
+	} else if !logUserAgent {
+		// Only IPs
+		fields = make([]zap.Field, 5)
+	} else {
+		fields = make([]zap.Field, 6)
 	}
+
 	return func(c *fiber.Ctx) {
+		start := time.Now()
+
+		// First call the other handlers in the chain!
 		c.Next()
+
+		// Then log
+
+		duration := time.Since(start).Milliseconds()
+		durationString := strconv.FormatInt(duration, 10) + "ms"
+
+		fields[0] = zap.String("duration", durationString)
+		fields[1] = zap.String("method", c.Method())
+		fields[2] = zap.String("url", c.OriginalURL())
+		if logIPs {
+			fields[3] = zap.String("ip", c.IP())
+			fields[4] = zap.Strings("forwardedFor", c.IPs())
+		} else if logUserAgent {
+			fields[3] = zap.String("userAgent", c.Get(fiber.HeaderUserAgent))
+		}
+		if logIPs && logUserAgent {
+			fields[5] = zap.String("userAgent", c.Get(fiber.HeaderUserAgent))
+		}
+
+		logger.Info("Handled request", fields...)
 	}
 }
