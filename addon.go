@@ -113,9 +113,9 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		return Addon{}, errors.New("An empty manifest was passed")
 	} else if catalogHandlers == nil && streamHandlers == nil {
 		return Addon{}, errors.New("No handler was passed")
-	} else if (opts.HandleEtagCatalogs && !opts.CachePublicCatalogs) ||
-		(opts.HandleEtagStreams && !opts.CachePublicStreams) {
-		return Addon{}, errors.New("ETags only make sense when also setting a cache age")
+	} else if (opts.CachePublicCatalogs && opts.CacheAgeCatalogs == 0) ||
+		(opts.CachePublicStreams && opts.CacheAgeStreams == 0) {
+		return Addon{}, errors.New("Enabling public caching only makes sense when also setting a cache age")
 	} else if opts.DisableRequestLogging && (opts.DisableIPlogging || opts.DisableUserAgentLogging) {
 		return Addon{}, errors.New("Enabling IP or user agent logging doesn't make sense when disabling request logging")
 	}
