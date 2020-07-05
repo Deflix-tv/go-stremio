@@ -117,6 +117,9 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	} else if (opts.CachePublicCatalogs && opts.CacheAgeCatalogs == 0) ||
 		(opts.CachePublicStreams && opts.CacheAgeStreams == 0) {
 		return nil, errors.New("Enabling public caching only makes sense when also setting a cache age")
+	} else if (opts.HandleEtagCatalogs && opts.CacheAgeCatalogs == 0) ||
+		(opts.HandleEtagStreams && opts.CacheAgeStreams == 0) {
+		return nil, errors.New("ETag handling only makes sense when also setting a cache age")
 	} else if opts.DisableRequestLogging && (opts.DisableIPlogging || opts.DisableUserAgentLogging) {
 		return nil, errors.New("Enabling IP or user agent logging doesn't make sense when disabling request logging")
 	}
