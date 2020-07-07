@@ -20,6 +20,12 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// ManifestCallback is the callback for manifest requests, so mostly addon installations.
+// You can use the callback to *prevent* users from installing your addon.
+// Return an HTTP status code >= 400 to stop further processing and let the addon return that exact status code.
+// Any status code < 400 will lead to the manifest being returned with a 200 OK status code in the response.
+type ManifestCallback func(userData interface{}) int
+
 // CatalogHandler is the callback for catalog requests for a specific type (like "movie").
 // The id parameter is the catalog ID that you specified yourself in the CatalogItem objects in the Manifest.
 type CatalogHandler func(id string, userData interface{}) ([]MetaPreviewItem, error)
@@ -101,6 +107,7 @@ type Addon struct {
 	logger            *zap.Logger
 	customMiddlewares []customMiddleware
 	customEndpoints   []customEndpoint
+	manifestCallback  ManifestCallback
 	userDataType      reflect.Type
 }
 
@@ -110,8 +117,8 @@ func init() {
 }
 
 // NewAddon creates a new Addon object that can be started with Run().
-// A proper manifest must be supplied, but all but one handler can be nil in case you only want to handle specific requests and opts can be the zero value of Options.
-func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, streamHandlers map[string]StreamHandler, opts Options) (*Addon, error) {
+// A proper manifest must be supplied, but manifestCallback and all but one handler can be nil in case you only want to handle specific requests and opts can be the zero value of Options.
+func NewAddon(manifest Manifest, manifestCallback ManifestCallback, catalogHandlers map[string]CatalogHandler, streamHandlers map[string]StreamHandler, opts Options) (*Addon, error) {
 	// Precondition checks
 	if manifest.ID == "" || manifest.Name == "" || manifest.Description == "" || manifest.Version == "" {
 		return nil, errors.New("An empty manifest was passed")
@@ -166,16 +173,17 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	}
 
 	return &Addon{
-		manifest:        manifest,
-		catalogHandlers: catalogHandlers,
-		streamHandlers:  streamHandlers,
-		opts:            opts,
-		logger:          logger,
+		manifest:         manifest,
+		catalogHandlers:  catalogHandlers,
+		streamHandlers:   streamHandlers,
+		opts:             opts,
+		logger:           logger,
+		manifestCallback: manifestCallback,
 	}, nil
 }
 
 // RegisterUserData registers the type of userData, so the addon can automatically unmarshal user data into an object of this type
-// and pass the object into the catalog and stream handlers.
+// and pass the object into the manifest callback or catalog and stream handlers.
 func (a *Addon) RegisterUserData(userDataObject interface{}) {
 	t := reflect.TypeOf(userDataObject)
 	if t.Kind() == reflect.Ptr {
@@ -258,7 +266,7 @@ func (a *Addon) Run() {
 	// Stremio endpoints
 
 	// In Fiber optional parameters don't work at the beginning of the URL, so we have to register two routes each
-	manifestHandler := createManifestHandler(a.manifest, logger)
+	manifestHandler := createManifestHandler(a.manifest, logger, a.manifestCallback, a.userDataType)
 	app.Get("/manifest.json", manifestHandler)
 	app.Get("/:userData/manifest.json", manifestHandler)
 	if a.catalogHandlers != nil {

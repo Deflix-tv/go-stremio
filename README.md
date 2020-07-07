@@ -39,6 +39,7 @@ It provides the most important parts of the Node.js SDK and depending on the req
 - [x] Optional custom middleware
 - [x] Optional custom endpoints
 - [x] Custom user data (users can have *settings* for your addon!)
+- [x] Addon installation callback
 
 Current *non*-features, as they're usually part of a reverse proxy deployed in front of the service:
 
@@ -69,7 +70,7 @@ var (
 func main() {
     streamHandlers := map[string]stremio.StreamHandler{"movie": movieHandler}
 
-    addon, err := stremio.NewAddon(manifest, nil, streamHandlers, stremio.DefaultOptions)
+    addon, err := stremio.NewAddon(manifest, nil, nil, streamHandlers, stremio.DefaultOptions)
     if err != nil {
         panic(err)
     }

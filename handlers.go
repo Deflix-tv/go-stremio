@@ -27,9 +27,30 @@ func createHealthHandler(logger *zap.Logger) func(*fiber.Ctx) {
 	}
 }
 
-func createManifestHandler(manifest Manifest, logger *zap.Logger) func(*fiber.Ctx) {
+func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallback ManifestCallback, userDataType reflect.Type) func(*fiber.Ctx) {
 	return func(c *fiber.Ctx) {
 		logger.Debug("manifestHandler called")
+
+		// First call the callback so the SDK user can prevent further processing
+		var userData interface{}
+		userDataString := c.Params("userData")
+		if userDataType == nil {
+			userData = userDataString
+		} else if userDataString == "" {
+			userData = nil
+		} else {
+			var err error
+			if userData, err = decodeUserData(userDataString, userDataType); err != nil {
+				c.Status(fiber.StatusBadRequest)
+				return
+			}
+		}
+		if manifestCallback != nil {
+			if status := manifestCallback(userData); status >= 400 {
+				c.Status(status)
+				return
+			}
+		}
 
 		resBody, err := json.Marshal(manifest)
 		if err != nil {

@@ -40,7 +40,7 @@ func main() {
 		HandleEtagStreams:  true,
 	}
 
-	addon, err := stremio.NewAddon(manifest, nil, streamHandlers, options)
+	addon, err := stremio.NewAddon(manifest, nil, nil, streamHandlers, options)
 	if err != nil {
 		panic(err)
 	}
