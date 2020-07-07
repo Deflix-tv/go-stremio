@@ -40,7 +40,7 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 			userData = nil
 		} else {
 			var err error
-			if userData, err = decodeUserData(userDataString, userDataType); err != nil {
+			if userData, err = decodeUserData(userDataString, userDataType, logger); err != nil {
 				c.Status(fiber.StatusBadRequest)
 				return
 			}
@@ -129,7 +129,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			userData = nil
 		} else {
 			var err error
-			if userData, err = decodeUserData(userDataString, userDataType); err != nil {
+			if userData, err = decodeUserData(userDataString, userDataType, logger); err != nil {
 				c.Status(fiber.StatusBadRequest)
 				return
 			}
@@ -208,13 +208,18 @@ func createRootHandler(redirectURL string, logger *zap.Logger) func(*fiber.Ctx) 
 	}
 }
 
-func decodeUserData(data string, t reflect.Type) (interface{}, error) {
+func decodeUserData(data string, t reflect.Type, logger *zap.Logger) (interface{}, error) {
+	logger.Debug("Decoding user data", zap.String("userData", data))
+
 	userDataDecoded, err := base64.URLEncoding.DecodeString(data)
 	if err != nil {
+		// We use WARN instead of ERROR because it's most likely an *encoding* error on the client side
+		logger.Warn("Couldn't decode user data", zap.Error(err))
 		return nil, err
 	}
 	userData := reflect.New(t).Interface()
 	if err = json.Unmarshal(userDataDecoded, userData); err != nil {
+		logger.Warn("Couldn't unmarshal user data", zap.Error(err))
 		return nil, err
 	}
 	return userData, nil
