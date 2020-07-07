@@ -52,7 +52,7 @@ func main() {
 	addon.Run()
 }
 
-func movieHandler(id string) ([]stremio.MetaPreviewItem, error) {
+func movieHandler(id string, userData interface{}) ([]stremio.MetaPreviewItem, error) {
 	if id != "blender" {
 		return nil, stremio.NotFound
 	}

@@ -48,7 +48,7 @@ func main() {
 	addon.Run()
 }
 
-func movieHandler(id string) ([]stremio.StreamItem, error) {
+func movieHandler(id string, userData interface{}) ([]stremio.StreamItem, error) {
 	// We only serve Big Buck Bunny and Sintel
 	if id == "tt1254207" {
 		return []stremio.StreamItem{

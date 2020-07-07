@@ -7,6 +7,7 @@ import (
 	netpprof "net/http/pprof"
 	"os"
 	"os/signal"
+	"reflect"
 	"runtime/pprof"
 	"strconv"
 	"syscall"
@@ -21,11 +22,11 @@ import (
 
 // CatalogHandler is the callback for catalog requests for a specific type (like "movie").
 // The id parameter is the catalog ID that you specified yourself in the CatalogItem objects in the Manifest.
-type CatalogHandler func(id string) ([]MetaPreviewItem, error)
+type CatalogHandler func(id string, userData interface{}) ([]MetaPreviewItem, error)
 
 // StreamHandler is the callback for stream requests for a specific type (like "movie").
 // The id parameter can be for example an IMDb ID if your addon handles the "movie" type.
-type StreamHandler func(id string) ([]StreamItem, error)
+type StreamHandler func(id string, userData interface{}) ([]StreamItem, error)
 
 // Options are the options that can be used to configure the addon.
 type Options struct {
@@ -100,6 +101,7 @@ type Addon struct {
 	logger            *zap.Logger
 	customMiddlewares []customMiddleware
 	customEndpoints   []customEndpoint
+	userDataType      reflect.Type
 }
 
 func init() {
@@ -170,6 +172,16 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		opts:            opts,
 		logger:          logger,
 	}, nil
+}
+
+// RegisterUserData registers the type of userData, so the addon can automatically unmarshal user data into an object of this type
+// and pass the object into the catalog and stream handlers.
+func (a *Addon) RegisterUserData(userDataObject interface{}) {
+	t := reflect.TypeOf(userDataObject)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	a.userDataType = t
 }
 
 // AddMiddleware appends a custom middleware to the chain of existing middlewares.
@@ -245,12 +257,19 @@ func (a *Addon) Run() {
 
 	// Stremio endpoints
 
-	app.Get("/manifest.json", createManifestHandler(a.manifest, logger))
+	// In Fiber optional parameters don't work at the beginning of the URL, so we have to register two routes each
+	manifestHandler := createManifestHandler(a.manifest, logger)
+	app.Get("/manifest.json", manifestHandler)
+	app.Get("/:userData/manifest.json", manifestHandler)
 	if a.catalogHandlers != nil {
-		app.Get("/catalog/:type/:id.json", createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs, logger))
+		catalogHandler := createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs, logger, a.userDataType)
+		app.Get("/catalog/:type/:id.json", catalogHandler)
+		app.Get("/:userData/catalog/:type/:id.json", catalogHandler)
 	}
 	if a.streamHandlers != nil {
-		app.Get("/stream/:type/:id.json", createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger))
+		streamHandler := createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger, a.userDataType)
+		app.Get("/stream/:type/:id.json", streamHandler)
+		app.Get("/:userData/stream/:type/:id.json", streamHandler)
 	}
 
 	// Additional endpoints

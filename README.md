@@ -38,10 +38,7 @@ It provides the most important parts of the Node.js SDK and depending on the req
 - [x] Optional cache control and ETag handling
 - [x] Optional custom middleware
 - [x] Optional custom endpoints
-
-Upcoming features:
-
-- [ ] Custom user data in URLs
+- [x] Custom user data (users can have *settings* for your addon!)
 
 Current *non*-features, as they're usually part of a reverse proxy deployed in front of the service:
 
@@ -80,7 +77,7 @@ func main() {
     addon.Run()
 }
 
-func movieHandler(id string) ([]stremio.StreamItem, error) {
+func movieHandler(id string, userData interface{}) ([]stremio.StreamItem, error) {
     // We only serve Big Buck Bunny and Sintel
     if id == "tt1254207" {
         return []stremio.StreamItem{

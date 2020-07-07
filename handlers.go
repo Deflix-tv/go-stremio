@@ -1,9 +1,11 @@
 package stremio
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"math"
 	"net/http"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -42,29 +44,29 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger) func(*fiber.Ct
 	}
 }
 
-func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger) func(*fiber.Ctx) {
+func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type) func(*fiber.Ctx) {
 	handlers := make(map[string]handler, len(catalogHandlers))
 	for k, v := range catalogHandlers {
-		handlers[k] = func(id string) (interface{}, error) {
-			return v(id)
+		handlers[k] = func(id string, userData interface{}) (interface{}, error) {
+			return v(id, userData)
 		}
 	}
-	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic, handleEtag, logger)
+	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic, handleEtag, logger, userDataType)
 }
 
-func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger) func(*fiber.Ctx) {
+func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type) func(*fiber.Ctx) {
 	handlers := make(map[string]handler, len(streamHandlers))
 	for k, v := range streamHandlers {
-		handlers[k] = func(id string) (interface{}, error) {
-			return v(id)
+		handlers[k] = func(id string, userData interface{}) (interface{}, error) {
+			return v(id, userData)
 		}
 	}
-	return createHandler("stream", handlers, []byte("streams"), cacheAge, cachePublic, handleEtag, logger)
+	return createHandler("stream", handlers, []byte("streams"), cacheAge, cachePublic, handleEtag, logger, userDataType)
 }
 
-type handler func(id string) (interface{}, error)
+type handler func(id string, userData interface{}) (interface{}, error)
 
-func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger) func(*fiber.Ctx) {
+func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type) func(*fiber.Ctx) {
 	handlerName = handlerName + "Handler"
 	handlerLogMsg := handlerName + " called"
 
@@ -97,7 +99,22 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			return
 		}
 
-		res, err := handler(requestedID)
+		// Decode user data
+		var userData interface{}
+		userDataString := c.Params("userData")
+		if userDataType == nil {
+			userData = userDataString
+		} else if userDataString == "" {
+			userData = nil
+		} else {
+			var err error
+			if userData, err = decodeUserData(userDataString, userDataType); err != nil {
+				c.Status(fiber.StatusBadRequest)
+				return
+			}
+		}
+
+		res, err := handler(requestedID, userData)
 		if err != nil {
 			switch err {
 			case NotFound:
@@ -168,4 +185,16 @@ func createRootHandler(redirectURL string, logger *zap.Logger) func(*fiber.Ctx) 
 		c.Set(fiber.HeaderLocation, redirectURL)
 		c.Status(http.StatusMovedPermanently)
 	}
+}
+
+func decodeUserData(data string, t reflect.Type) (interface{}, error) {
+	userDataDecoded, err := base64.URLEncoding.DecodeString(data)
+	if err != nil {
+		return nil, err
+	}
+	userData := reflect.New(t).Interface()
+	if err = json.Unmarshal(userDataDecoded, userData); err != nil {
+		return nil, err
+	}
+	return userData, nil
 }
