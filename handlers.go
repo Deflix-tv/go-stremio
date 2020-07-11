@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strconv"
 	"time"
@@ -27,7 +28,7 @@ func createHealthHandler(logger *zap.Logger) func(*fiber.Ctx) {
 	}
 }
 
-func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallback ManifestCallback, userDataType reflect.Type) func(*fiber.Ctx) {
+func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallback ManifestCallback, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
 	return func(c *fiber.Ctx) {
 		logger.Debug("manifestHandler called")
 
@@ -40,7 +41,7 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 			userData = nil
 		} else {
 			var err error
-			if userData, err = decodeUserData(userDataString, userDataType, logger); err != nil {
+			if userData, err = decodeUserData(userDataString, userDataType, logger, userDataIsBase64); err != nil {
 				c.Status(fiber.StatusBadRequest)
 				return
 			}
@@ -65,29 +66,29 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 	}
 }
 
-func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type) func(*fiber.Ctx) {
+func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
 	handlers := make(map[string]handler, len(catalogHandlers))
 	for k, v := range catalogHandlers {
 		handlers[k] = func(id string, userData interface{}) (interface{}, error) {
 			return v(id, userData)
 		}
 	}
-	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic, handleEtag, logger, userDataType)
+	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic, handleEtag, logger, userDataType, userDataIsBase64)
 }
 
-func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type) func(*fiber.Ctx) {
+func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
 	handlers := make(map[string]handler, len(streamHandlers))
 	for k, v := range streamHandlers {
 		handlers[k] = func(id string, userData interface{}) (interface{}, error) {
 			return v(id, userData)
 		}
 	}
-	return createHandler("stream", handlers, []byte("streams"), cacheAge, cachePublic, handleEtag, logger, userDataType)
+	return createHandler("stream", handlers, []byte("streams"), cacheAge, cachePublic, handleEtag, logger, userDataType, userDataIsBase64)
 }
 
 type handler func(id string, userData interface{}) (interface{}, error)
 
-func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type) func(*fiber.Ctx) {
+func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
 	handlerName = handlerName + "Handler"
 	handlerLogMsg := handlerName + " called"
 
@@ -129,7 +130,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			userData = nil
 		} else {
 			var err error
-			if userData, err = decodeUserData(userDataString, userDataType, logger); err != nil {
+			if userData, err = decodeUserData(userDataString, userDataType, logger, userDataIsBase64); err != nil {
 				c.Status(fiber.StatusBadRequest)
 				return
 			}
@@ -208,17 +209,26 @@ func createRootHandler(redirectURL string, logger *zap.Logger) func(*fiber.Ctx) 
 	}
 }
 
-func decodeUserData(data string, t reflect.Type, logger *zap.Logger) (interface{}, error) {
+func decodeUserData(data string, t reflect.Type, logger *zap.Logger, userDataIsBase64 bool) (interface{}, error) {
 	logger.Debug("Decoding user data", zap.String("userData", data))
 
-	userDataDecoded, err := base64.URLEncoding.DecodeString(data)
+	var userDataDecoded []byte
+	var err error
+	if userDataIsBase64 {
+		userDataDecoded, err = base64.URLEncoding.DecodeString(data)
+	} else {
+		var userDataDecodedString string
+		userDataDecodedString, err = url.PathUnescape(data)
+		userDataDecoded = []byte(userDataDecodedString)
+	}
 	if err != nil {
 		// We use WARN instead of ERROR because it's most likely an *encoding* error on the client side
 		logger.Warn("Couldn't decode user data", zap.Error(err))
 		return nil, err
 	}
+
 	userData := reflect.New(t).Interface()
-	if err = json.Unmarshal(userDataDecoded, userData); err != nil {
+	if err := json.Unmarshal(userDataDecoded, userData); err != nil {
 		logger.Warn("Couldn't unmarshal user data", zap.Error(err))
 		return nil, err
 	}

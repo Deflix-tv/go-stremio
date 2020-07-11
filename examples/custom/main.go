@@ -65,8 +65,10 @@ type customer struct {
 
 func main() {
 	streamHandlers := map[string]stremio.StreamHandler{"movie": movieHandler}
-
-	addon, err := stremio.NewAddon(manifest, manifestCallback, nil, streamHandlers, stremio.DefaultOptions)
+	options := stremio.Options{
+		UserDataIsBase64: true,
+	}
+	addon, err := stremio.NewAddon(manifest, manifestCallback, nil, streamHandlers, options)
 	if err != nil {
 		panic(err)
 	}

@@ -96,6 +96,11 @@ type Options struct {
 	HandleEtagCatalogs bool
 	// Same as HandleEtagCatalogs, but for streams.
 	HandleEtagStreams bool
+	// Flag for indicating whether user data should is Base64-encoded.
+	// As the user data is in the URL it needs to be the URL-safe Base64 encoding described in RFC 4648.
+	// When true, go-stremio first decodes the value before passing or unmarshalling it.
+	// Default false.
+	UserDataIsBase64 bool
 }
 
 // DefaultOptions is an Options object with default values.
@@ -275,16 +280,16 @@ func (a *Addon) Run() {
 	// Stremio endpoints
 
 	// In Fiber optional parameters don't work at the beginning of the URL, so we have to register two routes each
-	manifestHandler := createManifestHandler(a.manifest, logger, a.manifestCallback, a.userDataType)
+	manifestHandler := createManifestHandler(a.manifest, logger, a.manifestCallback, a.userDataType, a.opts.UserDataIsBase64)
 	app.Get("/manifest.json", manifestHandler)
 	app.Get("/:userData/manifest.json", manifestHandler)
 	if a.catalogHandlers != nil {
-		catalogHandler := createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs, logger, a.userDataType)
+		catalogHandler := createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs, logger, a.userDataType, a.opts.UserDataIsBase64)
 		app.Get("/catalog/:type/:id.json", catalogHandler)
 		app.Get("/:userData/catalog/:type/:id.json", catalogHandler)
 	}
 	if a.streamHandlers != nil {
-		streamHandler := createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger, a.userDataType)
+		streamHandler := createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger, a.userDataType, a.opts.UserDataIsBase64)
 		app.Get("/stream/:type/:id.json", streamHandler)
 		app.Get("/:userData/stream/:type/:id.json", streamHandler)
 	}
