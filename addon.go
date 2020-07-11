@@ -22,16 +22,25 @@ import (
 
 // ManifestCallback is the callback for manifest requests, so mostly addon installations.
 // You can use the callback to *prevent* users from installing your addon.
+// The userData parameter depends on whether you called `RegisterUserData()` before:
+// If not, a simple string will be passed. It's empty if the user didn't provide user data.
+// If yes, a pointer to an object you registered will be passed. It's nil if the user didn't provide user data.
 // Return an HTTP status code >= 400 to stop further processing and let the addon return that exact status code.
 // Any status code < 400 will lead to the manifest being returned with a 200 OK status code in the response.
 type ManifestCallback func(userData interface{}) int
 
 // CatalogHandler is the callback for catalog requests for a specific type (like "movie").
 // The id parameter is the catalog ID that you specified yourself in the CatalogItem objects in the Manifest.
+// The userData parameter depends on whether you called `RegisterUserData()` before:
+// If not, a simple string will be passed. It's empty if the user didn't provide user data.
+// If yes, a pointer to an object you registered will be passed. It's nil if the user didn't provide user data.
 type CatalogHandler func(id string, userData interface{}) ([]MetaPreviewItem, error)
 
 // StreamHandler is the callback for stream requests for a specific type (like "movie").
 // The id parameter can be for example an IMDb ID if your addon handles the "movie" type.
+// The userData parameter depends on whether you called `RegisterUserData()` before:
+// If not, a simple string will be passed. It's empty if the user didn't provide user data.
+// If yes, a pointer to an object you registered will be passed. It's nil if the user didn't provide user data.
 type StreamHandler func(id string, userData interface{}) ([]StreamItem, error)
 
 // Options are the options that can be used to configure the addon.
