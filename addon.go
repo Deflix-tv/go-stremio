@@ -2,7 +2,6 @@ package stremio
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	netpprof "net/http/pprof"
 	"os"
@@ -54,11 +53,6 @@ type Addon struct {
 	customEndpoints   []customEndpoint
 	manifestCallback  ManifestCallback
 	userDataType      reflect.Type
-}
-
-func init() {
-	// We need to overwrite the usage of the default FlagSet to hide the flags defined by Fiber
-	flag.CommandLine.Usage = usage
 }
 
 // NewAddon creates a new Addon object that can be started with Run().
