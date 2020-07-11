@@ -45,7 +45,7 @@ func main() {
 		HandleEtagCatalogs:  true,
 	}
 
-	addon, err := stremio.NewAddon(manifest, nil, catalogHandlers, nil, options)
+	addon, err := stremio.NewAddon(manifest, catalogHandlers, nil, options)
 	if err != nil {
 		panic(err)
 	}

@@ -70,9 +70,6 @@ func main() {
 		panic(err)
 	}
 
-	// Create manifest calback that uses the logger we previously created
-	manifestCallback := createManifestCallback(logger)
-
 	// Create movie handler that uses the logger we previously created
 	movieHandler := createMovieHandler(logger)
 	// Let the movieHandler handle the "movie" type
@@ -86,7 +83,7 @@ func main() {
 	}
 
 	// Create addon
-	addon, err := stremio.NewAddon(manifest, manifestCallback, nil, streamHandlers, options)
+	addon, err := stremio.NewAddon(manifest, nil, streamHandlers, options)
 	if err != nil {
 		logger.Fatal("Couldn't create new addon", zap.Error(err))
 	}
@@ -98,36 +95,14 @@ func main() {
 	customMiddleware := createCustomMiddleware(logger)
 	addon.AddMiddleware("/", customMiddleware)
 
+	// Add manifest callback that uses the logger we previously created
+	manifestCallback := createManifestCallback(logger)
+	addon.SetManifestCallback(manifestCallback)
+
 	// Add a custom endpoint that responds to requests to /ping with "pong".
 	addon.AddEndpoint("GET", "/ping", customEndpoint)
 
 	addon.Run()
-}
-
-// Manifest callback which prevents installations by unknown users and logs successful installations
-func createManifestCallback(logger *zap.Logger) stremio.ManifestCallback {
-	return func(userData interface{}) int {
-		// User provided no data
-		if userData == nil {
-			return fiber.StatusUnauthorized
-		}
-
-		u, ok := userData.(*customer)
-		if !ok {
-			t := fmt.Sprintf("%T", userData)
-			logger.Error("Couldn't convert user data to customer object", zap.String("type", t))
-			return fiber.StatusInternalServerError
-		}
-
-		for _, allowedUser := range allowedUsers {
-			if u.UserID == allowedUser.UserID && u.Token == allowedUser.Token {
-				logger.Info("A user installed our addon", zap.String("user", u.UserID))
-				return fiber.StatusOK
-			}
-		}
-		// User provided data, but didn't match any of the allowed users
-		return fiber.StatusForbidden
-	}
 }
 
 func createMovieHandler(logger *zap.Logger) stremio.StreamHandler {
@@ -186,6 +161,32 @@ func createCustomMiddleware(logger *zap.Logger) func(c *fiber.Ctx) {
 		lock.Unlock()
 
 		c.Next()
+	}
+}
+
+// Manifest callback which prevents installations by unknown users and logs successful installations
+func createManifestCallback(logger *zap.Logger) stremio.ManifestCallback {
+	return func(userData interface{}) int {
+		// User provided no data
+		if userData == nil {
+			return fiber.StatusUnauthorized
+		}
+
+		u, ok := userData.(*customer)
+		if !ok {
+			t := fmt.Sprintf("%T", userData)
+			logger.Error("Couldn't convert user data to customer object", zap.String("type", t))
+			return fiber.StatusInternalServerError
+		}
+
+		for _, allowedUser := range allowedUsers {
+			if u.UserID == allowedUser.UserID && u.Token == allowedUser.Token {
+				logger.Info("A user installed our addon", zap.String("user", u.UserID))
+				return fiber.StatusOK
+			}
+		}
+		// User provided data, but didn't match any of the allowed users
+		return fiber.StatusForbidden
 	}
 }
 

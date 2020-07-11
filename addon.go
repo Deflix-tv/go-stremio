@@ -63,7 +63,7 @@ func init() {
 
 // NewAddon creates a new Addon object that can be started with Run().
 // A proper manifest must be supplied, but manifestCallback and all but one handler can be nil in case you only want to handle specific requests and opts can be the zero value of Options.
-func NewAddon(manifest Manifest, manifestCallback ManifestCallback, catalogHandlers map[string]CatalogHandler, streamHandlers map[string]StreamHandler, opts Options) (*Addon, error) {
+func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, streamHandlers map[string]StreamHandler, opts Options) (*Addon, error) {
 	// Precondition checks
 	if manifest.ID == "" || manifest.Name == "" || manifest.Description == "" || manifest.Version == "" {
 		return nil, errors.New("An empty manifest was passed")
@@ -102,12 +102,11 @@ func NewAddon(manifest Manifest, manifestCallback ManifestCallback, catalogHandl
 
 	// Create and return addon
 	return &Addon{
-		manifest:         manifest,
-		catalogHandlers:  catalogHandlers,
-		streamHandlers:   streamHandlers,
-		opts:             opts,
-		logger:           opts.Logger,
-		manifestCallback: manifestCallback,
+		manifest:        manifest,
+		catalogHandlers: catalogHandlers,
+		streamHandlers:  streamHandlers,
+		opts:            opts,
+		logger:          opts.Logger,
 	}, nil
 }
 
@@ -140,6 +139,11 @@ func (a *Addon) AddEndpoint(method, path string, handler func(*fiber.Ctx)) {
 		handler: handler,
 	}
 	a.customEndpoints = append(a.customEndpoints, customEndpoint)
+}
+
+// SetManifestCallback sets the manifest callback
+func (a *Addon) SetManifestCallback(callback ManifestCallback) {
+	a.manifestCallback = callback
 }
 
 // Run starts the remote addon. It sets up an HTTP server that handles requests to "/manifest.json" etc. and gracefully handles shutdowns.
