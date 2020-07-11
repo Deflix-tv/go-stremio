@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/deflix-tv/go-stremio"
 	"github.com/gofiber/fiber"
+	"go.uber.org/zap"
 )
 
 var (
@@ -64,53 +64,99 @@ type customer struct {
 }
 
 func main() {
+	// Create the logger first, so we can use it in our handlers
+	logger, err := stremio.NewLogger("info")
+	if err != nil {
+		panic(err)
+	}
+
+	// Create manifest calback that uses the logger we previously created
+	manifestCallback := createManifestCallback(logger)
+
+	// Create movie handler that uses the logger we previously created
+	movieHandler := createMovieHandler(logger)
+	// Let the movieHandler handle the "movie" type
 	streamHandlers := map[string]stremio.StreamHandler{"movie": movieHandler}
+
+	// Our addon uses Base64 encoded user data
 	options := stremio.Options{
 		UserDataIsBase64: true,
 	}
+
+	// Create addon
 	addon, err := stremio.NewAddon(manifest, manifestCallback, nil, streamHandlers, options)
 	if err != nil {
-		panic(err)
+		logger.Fatal("Couldn't create new addon", zap.Error(err))
 	}
 
 	// Register the user data type
 	addon.RegisterUserData(customer{})
 
 	// Add a custom middleware that counts the number of requests per route and regularly prints it
-	addon.AddMiddleware("/", createCustomMiddleware())
+	customMiddleware := createCustomMiddleware(logger)
+	addon.AddMiddleware("/", customMiddleware)
 
 	// Add a custom endpoint that responds to requests to /ping with "pong".
-	addon.AddEndpoint("GET", "/ping", func(c *fiber.Ctx) {
-		c.SendString("pong")
-	})
+	addon.AddEndpoint("GET", "/ping", customEndpoint)
 
 	addon.Run()
 }
 
 // Manifest callback which prevents installations by unknown users and logs successful installations
-func manifestCallback(userData interface{}) int {
-	// User provided no data
-	if userData == nil {
-		return fiber.StatusUnauthorized
-	}
-
-	u, ok := userData.(*customer)
-	if !ok {
-		log.Printf("Couldn't convert user data to customer object. Type: %T", userData)
-		return fiber.StatusInternalServerError
-	}
-
-	for _, allowedUser := range allowedUsers {
-		if u.UserID == allowedUser.UserID && u.Token == allowedUser.Token {
-			log.Printf("User %v installed our addon!", u.UserID)
-			return fiber.StatusOK
+func createManifestCallback(logger *zap.Logger) stremio.ManifestCallback {
+	return func(userData interface{}) int {
+		// User provided no data
+		if userData == nil {
+			return fiber.StatusUnauthorized
 		}
+
+		u, ok := userData.(*customer)
+		if !ok {
+			t := fmt.Sprintf("%T", userData)
+			logger.Error("Couldn't convert user data to customer object", zap.String("type", t))
+			return fiber.StatusInternalServerError
+		}
+
+		for _, allowedUser := range allowedUsers {
+			if u.UserID == allowedUser.UserID && u.Token == allowedUser.Token {
+				logger.Info("A user installed our addon", zap.String("user", u.UserID))
+				return fiber.StatusOK
+			}
+		}
+		// User provided data, but didn't match any of the allowed users
+		return fiber.StatusForbidden
 	}
-	// User provided data, but didn't match any of the allowed users
-	return fiber.StatusForbidden
 }
 
-func createCustomMiddleware() func(c *fiber.Ctx) {
+func createMovieHandler(logger *zap.Logger) stremio.StreamHandler {
+	return func(id string, userData interface{}) ([]stremio.StreamItem, error) {
+		// We only serve Big Buck Bunny
+		if id == "tt1254207" {
+			// User provided no data
+			if userData == nil {
+				return streams, nil
+			}
+
+			u, ok := userData.(*customer)
+			if !ok {
+				return nil, fmt.Errorf("Couldn't convert user data to customer object. Type: %T", userData)
+			}
+			logger.Info("User requested stream", zap.String("userID", u.UserID))
+			// Return different streams depending on the user's preference
+			switch u.PreferredStreamType {
+			case "torrent":
+				return []stremio.StreamItem{streams[0]}, nil
+			case "http":
+				return []stremio.StreamItem{streams[1]}, nil
+			default:
+				return streams, nil
+			}
+		}
+		return nil, stremio.NotFound
+	}
+}
+
+func createCustomMiddleware(logger *zap.Logger) func(c *fiber.Ctx) {
 	stats := map[string]int{}
 	lock := sync.Mutex{}
 
@@ -119,7 +165,8 @@ func createCustomMiddleware() func(c *fiber.Ctx) {
 		for {
 			time.Sleep(10 * time.Second)
 			lock.Lock()
-			log.Printf("Route stats: %+v", stats)
+			statsString := fmt.Sprintf("%+v", stats)
+			logger.Info("Route stats", zap.String("stats", statsString))
 			lock.Unlock()
 		}
 	}()
@@ -140,27 +187,6 @@ func createCustomMiddleware() func(c *fiber.Ctx) {
 	}
 }
 
-func movieHandler(id string, userData interface{}) ([]stremio.StreamItem, error) {
-	// We only serve Big Buck Bunny
-	if id == "tt1254207" {
-		// User provided no data
-		if userData == nil {
-			return streams, nil
-		}
-
-		u, ok := userData.(*customer)
-		if !ok {
-			return nil, fmt.Errorf("Couldn't convert user data to customer object. Type: %T", userData)
-		}
-		// Return different streams depending on the user's preference
-		switch u.PreferredStreamType {
-		case "torrent":
-			return []stremio.StreamItem{streams[0]}, nil
-		case "http":
-			return []stremio.StreamItem{streams[1]}, nil
-		default:
-			return streams, nil
-		}
-	}
-	return nil, stremio.NotFound
+func customEndpoint(c *fiber.Ctx) {
+	c.SendString("pong")
 }
