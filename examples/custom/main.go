@@ -100,7 +100,8 @@ func main() {
 	addon.SetManifestCallback(manifestCallback)
 
 	// Add a custom endpoint that responds to requests to /ping with "pong".
-	addon.AddEndpoint("GET", "/ping", customEndpoint)
+	customEndpoint := createCustomEndpoint(addon, logger)
+	addon.AddEndpoint("GET", "/:userData/ping", customEndpoint)
 
 	addon.Run()
 }
@@ -190,6 +191,24 @@ func createManifestCallback(logger *zap.Logger) stremio.ManifestCallback {
 	}
 }
 
-func customEndpoint(c *fiber.Ctx) {
-	c.SendString("pong")
+func createCustomEndpoint(addon *stremio.Addon, logger *zap.Logger) func(*fiber.Ctx) {
+	return func(c *fiber.Ctx) {
+		// We used "/:userData" when creating the custom endpoint, so we must pass that parameter name to access the custom user data.
+		userData, err := addon.DecodeUserData("userData", c)
+		if err != nil {
+			logger.Warn("Couldn't decode user data", zap.Error(err))
+			c.Status(fiber.StatusBadRequest)
+			return
+		}
+		u, ok := userData.(*customer)
+		if !ok {
+			t := fmt.Sprintf("%T", userData)
+			logger.Error("Couldn't convert user data to customer object", zap.String("type", t))
+			c.Status(fiber.StatusInternalServerError)
+			return
+		}
+		logger.Info("A user called the ping endpoint", zap.String("user", u.UserID))
+
+		c.SendString("pong")
+	}
 }

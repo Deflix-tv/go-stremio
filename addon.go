@@ -120,6 +120,16 @@ func (a *Addon) RegisterUserData(userDataObject interface{}) {
 	a.userDataType = t
 }
 
+// DecodeUserData decodes the request's user data and returns the result.
+// It's useful when you add custom endpoints to the addon that don't have a userData parameter
+// like the ManifestCallback, CatalogHandler and StreamHandler have.
+// The param value must match the URL parameter you used when creating the custom endpoint,
+// for example when using `AddEndpoint("GET", "/:userData/ping", customEndpoint)` you must pass "userData".
+func (a *Addon) DecodeUserData(param string, c *fiber.Ctx) (interface{}, error) {
+	data := c.Params(param, "")
+	return decodeUserData(data, a.userDataType, a.logger, a.opts.UserDataIsBase64)
+}
+
 // AddMiddleware appends a custom middleware to the chain of existing middlewares.
 // Set path to an empty string or "/" to let the middleware apply to all routes.
 // Don't forget to call c.Next() on the Fiber context!
@@ -132,6 +142,10 @@ func (a *Addon) AddMiddleware(path string, mw func(*fiber.Ctx)) {
 }
 
 // AddEndpoint adds a custom endpoint (a route and its handler).
+// If you want to be able to access custom user data, you can use a path like this:
+// "/:userData/foo" and then either deal with the data yourself
+// by using `c.Params("userData", "")` in the handler,
+// or use the convenience method `DecodeUserData("userData", c)`.
 func (a *Addon) AddEndpoint(method, path string, handler func(*fiber.Ctx)) {
 	customEndpoint := customEndpoint{
 		method:  method,
