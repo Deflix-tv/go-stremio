@@ -17,7 +17,6 @@ import (
 	"github.com/gofiber/fiber"
 	"github.com/gofiber/fiber/middleware"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // ManifestCallback is the callback for manifest requests, so mostly addon installations.
@@ -52,6 +51,10 @@ type Options struct {
 	// The port to listen on.
 	// Default 8080.
 	Port int
+	// You can set a custom logger, or leave this empty to create a new one
+	// with sane defaults and the LoggingLevel in these options.
+	// Default nil.
+	Logger *zap.Logger
 	// The logging level.
 	// Only logs with the same or a higher log level will be shown.
 	// For example when you set it to "info", info, warn and error logs will be shown, but no debug logs.
@@ -146,7 +149,10 @@ func NewAddon(manifest Manifest, manifestCallback ManifestCallback, catalogHandl
 		return nil, errors.New("ETag handling only makes sense when also setting a cache age")
 	} else if opts.DisableRequestLogging && (opts.LogIPs || opts.LogUserAgent) {
 		return nil, errors.New("Enabling IP or user agent logging doesn't make sense when disabling request logging")
+	} else if opts.Logger != nil && opts.LoggingLevel != "" {
+		return nil, errors.New("Setting a logging level in the options doesn't make sense when you already set a custom logger")
 	}
+
 	// Set default values
 	if opts.BindAddr == "" {
 		opts.BindAddr = DefaultOptions.BindAddr
@@ -158,40 +164,21 @@ func NewAddon(manifest Manifest, manifestCallback ManifestCallback, catalogHandl
 		opts.Port = DefaultOptions.Port
 	}
 
-	// Configure logger
-	logLevel, err := parseZapLevel(opts.LoggingLevel)
-	if err != nil {
-		return nil, fmt.Errorf("Couldn't parse log level: %w", err)
-	}
-	logConfig := zap.NewDevelopmentConfig()
-	logConfig.Level = zap.NewAtomicLevelAt(logLevel)
-	// Deactivate stacktraces for warn level.
-	logConfig.Development = false
-	// Mix between zap's development and production EncoderConfig and other changes.
-	logConfig.EncoderConfig = zapcore.EncoderConfig{
-		TimeKey:        "ts",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.CapitalLevelEncoder,
-		EncodeTime:     zapcore.RFC3339TimeEncoder,
-		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeCaller:   nil,
-	}
-	logger, err := logConfig.Build()
-	if err != nil {
-		return nil, fmt.Errorf("Couldn't create logger: %w", err)
+	// Configure logger if no custom one is set
+	if opts.Logger == nil {
+		var err error
+		if opts.Logger, err = NewLogger(opts.LoggingLevel); err != nil {
+			return nil, fmt.Errorf("Couldn't create new logger: %w", err)
+		}
 	}
 
+	// Create and return addon
 	return &Addon{
 		manifest:         manifest,
 		catalogHandlers:  catalogHandlers,
 		streamHandlers:   streamHandlers,
 		opts:             opts,
-		logger:           logger,
+		logger:           opts.Logger,
 		manifestCallback: manifestCallback,
 	}, nil
 }
@@ -336,27 +323,4 @@ func (a *Addon) Run() {
 		logger.Fatal("Error shutting down server", zap.Error(err))
 	}
 	logger.Info("Finished shutting down server")
-}
-
-// Logger returns the addon's logger.
-// It's recommended to use this logger for logging in addons
-// so that the logging output is consistent.
-// You can also change its configuration this way,
-// as it's a pointer to the logger that's used by the SDK.
-func (a *Addon) Logger() *zap.Logger {
-	return a.logger
-}
-
-func parseZapLevel(logLevel string) (zapcore.Level, error) {
-	switch logLevel {
-	case "debug":
-		return zapcore.DebugLevel, nil
-	case "info":
-		return zapcore.InfoLevel, nil
-	case "warn":
-		return zapcore.WarnLevel, nil
-	case "error":
-		return zapcore.ErrorLevel, nil
-	}
-	return 0, errors.New(`unknown log level - only knows ["debug", "info", "warn", "error"]`)
 }
