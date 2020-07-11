@@ -69,6 +69,7 @@ var (
 )
 
 func main() {
+	// Let the movieHandler handle the "movie" type
     streamHandlers := map[string]stremio.StreamHandler{"movie": movieHandler}
 
     addon, err := stremio.NewAddon(manifest, nil, nil, streamHandlers, stremio.DefaultOptions)

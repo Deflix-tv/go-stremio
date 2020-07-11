@@ -30,6 +30,7 @@ var (
 )
 
 func main() {
+	// Let the movieHandler handle the "movie" type
 	streamHandlers := map[string]stremio.StreamHandler{"movie": movieHandler}
 
 	// We want clients and proxies to cache the response for 24 hours
