@@ -52,21 +52,21 @@ type Options struct {
 	// The port to listen on.
 	// Default 8080.
 	Port int
-	// The log level.
+	// The logging level.
 	// Only logs with the same or a higher log level will be shown.
 	// For example when you set it to "info", info, warn and error logs will be shown, but no debug logs.
 	// Accepts "debug", "info", "warn" and "error".
 	// Default "info".
-	LogLevel string
+	LoggingLevel string
 	// Flag for indicating whether requests should be logged.
 	// Default false (meaning requests will be logged by default).
 	DisableRequestLogging bool
 	// Flag for indicating whether IP addresses should be logged.
-	// Default false (meaning IP addresses will be logged by default).
-	DisableIPlogging bool
+	// Default false.
+	LogIPs bool
 	// Flag for indicating whether the user agent header should be logged.
-	// Default false (meaning the user agent header will be logged by default).
-	DisableUserAgentLogging bool
+	// Default false.
+	LogUserAgent bool
 	// URL to redirect to when someone requests the root of the handler instead of the manifest, catalog, stream etc.
 	// When no value is set, it will lead to a "404 Not Found" response.
 	// Default "".
@@ -101,9 +101,9 @@ type Options struct {
 // DefaultOptions is an Options object with default values.
 // For fields that aren't set here the zero value is the default value.
 var DefaultOptions = Options{
-	BindAddr: "localhost",
-	Port:     8080,
-	LogLevel: "info",
+	BindAddr:     "localhost",
+	Port:         8080,
+	LoggingLevel: "info",
 }
 
 // Addon represents a remote addon.
@@ -139,22 +139,22 @@ func NewAddon(manifest Manifest, manifestCallback ManifestCallback, catalogHandl
 	} else if (opts.HandleEtagCatalogs && opts.CacheAgeCatalogs == 0) ||
 		(opts.HandleEtagStreams && opts.CacheAgeStreams == 0) {
 		return nil, errors.New("ETag handling only makes sense when also setting a cache age")
-	} else if opts.DisableRequestLogging && (opts.DisableIPlogging || opts.DisableUserAgentLogging) {
+	} else if opts.DisableRequestLogging && (opts.LogIPs || opts.LogUserAgent) {
 		return nil, errors.New("Enabling IP or user agent logging doesn't make sense when disabling request logging")
 	}
 	// Set default values
 	if opts.BindAddr == "" {
 		opts.BindAddr = DefaultOptions.BindAddr
 	}
-	if opts.LogLevel == "" {
-		opts.LogLevel = DefaultOptions.LogLevel
+	if opts.LoggingLevel == "" {
+		opts.LoggingLevel = DefaultOptions.LoggingLevel
 	}
 	if opts.Port == 0 {
 		opts.Port = DefaultOptions.Port
 	}
 
 	// Configure logger
-	logLevel, err := parseZapLevel(opts.LogLevel)
+	logLevel, err := parseZapLevel(opts.LoggingLevel)
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't parse log level: %w", err)
 	}
@@ -249,7 +249,7 @@ func (a *Addon) Run() {
 	})
 	app.Use(middleware.Recover())
 	if !a.opts.DisableRequestLogging {
-		app.Use(createLoggingMiddleware(logger, !a.opts.DisableIPlogging, !a.opts.DisableUserAgentLogging))
+		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent))
 	}
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
 	for _, customMW := range a.customMiddlewares {
