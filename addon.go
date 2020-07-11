@@ -53,6 +53,7 @@ type Options struct {
 	Port int
 	// You can set a custom logger, or leave this empty to create a new one
 	// with sane defaults and the LoggingLevel in these options.
+	// If you already called `NewLogger()`, you should set that logger here.
 	// Default nil.
 	Logger *zap.Logger
 	// The logging level.

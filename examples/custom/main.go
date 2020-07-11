@@ -78,8 +78,10 @@ func main() {
 	// Let the movieHandler handle the "movie" type
 	streamHandlers := map[string]stremio.StreamHandler{"movie": movieHandler}
 
-	// Our addon uses Base64 encoded user data
 	options := stremio.Options{
+		// We already have a logger
+		Logger: logger,
+		// Our addon uses Base64 encoded user data
 		UserDataIsBase64: true,
 	}
 

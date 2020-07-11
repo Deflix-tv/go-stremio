@@ -14,6 +14,8 @@ import (
 // It makes sense to get this logger as early as possible and use it in your
 // ManifestCallback, CatalogHandler and StreamHandler,
 // so that all logs behave and are formatted the same way.
+// You should then also set this logger in the options for `NewAddon()`,
+// so that not two loggers are created.
 // Alternatively you can create your own custom *zap.Logger and set it in the options
 // when creating a new addon, leading to the addon using that custom logger.
 func NewLogger(level string) (*zap.Logger, error) {
