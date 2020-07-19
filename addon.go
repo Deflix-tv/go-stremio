@@ -127,10 +127,10 @@ func (a *Addon) DecodeUserData(param string, c *fiber.Ctx) (interface{}, error) 
 // AddMiddleware appends a custom middleware to the chain of existing middlewares.
 // Set path to an empty string or "/" to let the middleware apply to all routes.
 // Don't forget to call c.Next() on the Fiber context!
-func (a *Addon) AddMiddleware(path string, mw func(*fiber.Ctx)) {
+func (a *Addon) AddMiddleware(path string, middleware fiber.Handler) {
 	customMW := customMiddleware{
 		path: path,
-		mw:   mw,
+		mw:   middleware,
 	}
 	a.customMiddlewares = append(a.customMiddlewares, customMW)
 }
@@ -140,7 +140,7 @@ func (a *Addon) AddMiddleware(path string, mw func(*fiber.Ctx)) {
 // "/:userData/foo" and then either deal with the data yourself
 // by using `c.Params("userData", "")` in the handler,
 // or use the convenience method `DecodeUserData("userData", c)`.
-func (a *Addon) AddEndpoint(method, path string, handler func(*fiber.Ctx)) {
+func (a *Addon) AddEndpoint(method, path string, handler fiber.Handler) {
 	customEndpoint := customEndpoint{
 		method:  method,
 		path:    path,

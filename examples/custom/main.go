@@ -140,7 +140,7 @@ func createMovieHandler(logger *zap.Logger) stremio.StreamHandler {
 	}
 }
 
-func createCustomMiddleware(logger *zap.Logger) func(c *fiber.Ctx) {
+func createCustomMiddleware(logger *zap.Logger) fiber.Handler {
 	stats := map[string]int{}
 	lock := sync.Mutex{}
 
