@@ -31,6 +31,7 @@ It provides the most important parts of the Node.js SDK and depending on the req
 
 - [x] All required *types* for building catalog and stream addons
 - [x] Web server with graceful shutdown
+  - [x] With optional channel to be notified about a shutdown
 - [x] CORS middleware to allow requests from Stremio
 - [x] Health check endpoint
 - [x] Optional profiling endpoints (for `go pprof`)
@@ -77,7 +78,7 @@ func main() {
         panic(err)
     }
 
-    addon.Run()
+    addon.Run(nil)
 }
 
 func movieHandler(id string, userData interface{}) ([]stremio.StreamItem, error) {

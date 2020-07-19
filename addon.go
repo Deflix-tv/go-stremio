@@ -155,9 +155,16 @@ func (a *Addon) SetManifestCallback(callback ManifestCallback) {
 }
 
 // Run starts the remote addon. It sets up an HTTP server that handles requests to "/manifest.json" etc. and gracefully handles shutdowns.
-func (a *Addon) Run() {
+// The call is *blocking*, so use the stoppingChan param if you want to be notified when the addon is about to shut down
+// because of a system signal like Ctrl+C or `docker stop`. It should be a buffered channel with a capacity of 1.
+func (a *Addon) Run(stoppingChan chan bool) {
 	logger := a.logger
 	defer logger.Sync()
+
+	// Make sure the passed channel is buffered, so we can send a message before shutting down and not be blocked by the channel.
+	if stoppingChan != nil && cap(stoppingChan) < 1 {
+		logger.Fatal("The passed stopping channel isn't buffered")
+	}
 
 	logger.Info("Setting up server...")
 	app := fiber.New(&fiber.Settings{
@@ -259,6 +266,9 @@ func (a *Addon) Run() {
 	sig := <-c
 	logger.Info("Received signal, shutting down server...", zap.Stringer("signal", sig))
 	*stoppingPtr = true
+	if stoppingChan != nil {
+		stoppingChan <- true
+	}
 	// Graceful shutdown, waiting for all current requests to finish without accepting new ones.
 	if err := app.Shutdown(); err != nil {
 		logger.Fatal("Error shutting down server", zap.Error(err))

@@ -103,7 +103,13 @@ func main() {
 	customEndpoint := createCustomEndpoint(addon, logger)
 	addon.AddEndpoint("GET", "/:userData/ping", customEndpoint)
 
-	addon.Run()
+	// The stopping channel allows us to react on the addon being shutdown, for example because of a system signal received from Ctrl+C or `docker stop`
+	stoppingChan := make(chan bool, 1)
+	go func() {
+		<-stoppingChan
+		logger.Info("Addon stopping")
+	}()
+	addon.Run(stoppingChan)
 }
 
 func createMovieHandler(logger *zap.Logger) stremio.StreamHandler {

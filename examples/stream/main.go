@@ -46,7 +46,7 @@ func main() {
 		panic(err)
 	}
 
-	addon.Run()
+	addon.Run(nil)
 }
 
 func movieHandler(id string, userData interface{}) ([]stremio.StreamItem, error) {
