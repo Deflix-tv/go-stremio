@@ -172,12 +172,13 @@ func (a *Addon) Run() {
 			ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 			ctx.Status(code).SendString("An internal server error occurred")
 		},
-		BodyLimit:             0,
 		DisableStartupMessage: true,
+		BodyLimit:             0,
+		ReadBufferSize:        1000, // 1 KB
 		ReadTimeout:           5 * time.Second,
-		WriteTimeout:          15 * time.Second,
-		IdleTimeout:           60 * time.Second, // 1m
-		ReadBufferSize:        1000,             // 1 KB
+		// Docker stop only gives us 10s. We want to close all connections before that.
+		WriteTimeout: 9 * time.Second,
+		IdleTimeout:  9 * time.Second,
 	})
 	app.Use(middleware.Recover())
 	if !a.opts.DisableRequestLogging {
