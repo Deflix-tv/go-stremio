@@ -105,9 +105,6 @@ type MetaItem struct {
 	Awards      string         `json:"awards,omitempty"`
 	Website     string         `json:"website,omitempty"` // URL
 
-	// Note: Omitted "genres", "director" and "cast" because they will be deprecated soon.
-	// Use links instead.
-
 	// TODO: behaviorHints
 }
 
