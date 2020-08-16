@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/deflix-tv/go-stremio"
+	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 	"github.com/gofiber/fiber"
 	"go.uber.org/zap"
 )
@@ -65,7 +66,7 @@ type customer struct {
 
 func main() {
 	// Create the logger first, so we can use it in our handlers
-	logger, err := stremio.NewLogger("info")
+	logger, err := stremio.NewLogger("debug")
 	if err != nil {
 		panic(err)
 	}
@@ -80,6 +81,8 @@ func main() {
 		Logger: logger,
 		// Our addon uses Base64 encoded user data
 		UserDataIsBase64: true,
+		// We want to access the cinemeta.Meta from the context
+		PutMetaInContext: true,
 	}
 
 	// Create addon
@@ -166,6 +169,15 @@ func createCustomMiddleware(logger *zap.Logger) fiber.Handler {
 		// We unlock manually instead of by deferring so we don't block for the whole duration
 		// of the remaining request processing in other middlewares and handlers
 		lock.Unlock()
+
+		metaIface := c.Locals("meta")
+		if metaIface == nil {
+			logger.Error("No meta in context")
+		} else if meta, ok := metaIface.(cinemeta.Meta); ok {
+			logger.Info("User is asking for stream", zap.String("movie", meta.Name))
+		} else {
+			logger.Error("Couldn't turn meta interface value to proper object", zap.String("type", fmt.Sprintf("%T", metaIface)))
+		}
 
 		c.Next()
 	}
