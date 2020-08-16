@@ -69,6 +69,10 @@ type Options struct {
 	// When true, go-stremio first decodes the value before passing or unmarshalling it.
 	// Default false.
 	UserDataIsBase64 bool
+	// Flag for indicating whether to look up the movie / TV show name by its IMDb ID and put it into the context.
+	// Only works for stream requests.
+	// Default false.
+	PutMetaInContext bool
 }
 
 // DefaultOptions is an Options object with default values.

@@ -1,12 +1,16 @@
 package stremio
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/cors"
 	"github.com/gofiber/fiber"
 	"go.uber.org/zap"
+
+	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 )
 
 type customMiddleware struct {
@@ -86,5 +90,58 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent bool) func
 				zap.Strings("forwardedFor", c.IPs()),
 				zap.String("userAgent", c.Get(fiber.HeaderUserAgent)))
 		}
+	}
+}
+
+func createMetaMiddleware(cinemetaClient cinemeta.Client, logger *zap.Logger) func(*fiber.Ctx) {
+	return func(c *fiber.Ctx) {
+		t := c.Params("type", "")
+		id := c.Params("id", "")
+		if t == "" || id == "" {
+			logger.Warn("Can't determine media type and/or IMDb ID from URL parameters")
+			c.Next()
+			return
+		}
+
+		var meta cinemeta.Meta
+		var err error
+		switch t {
+		case "movie":
+			meta, err = cinemetaClient.GetMovie(c.Context(), id)
+			if err != nil {
+				logger.Error("Couldn't get movie info from Cinemeta", zap.Error(err))
+				c.Next()
+				return
+			}
+		case "series":
+			splitID := strings.Split(id, ":")
+			if len(splitID) != 3 {
+				logger.Warn("No 3 elements after splitting TV show ID by \":\"", zap.String("id", id))
+				c.Next()
+				return
+			}
+			season, err := strconv.Atoi(splitID[1])
+			if err != nil {
+				logger.Warn("Can't parse season as int", zap.String("season", splitID[1]))
+				c.Next()
+				return
+			}
+			episode, err := strconv.Atoi(splitID[2])
+			if err != nil {
+				logger.Warn("Can't parse episode as int", zap.String("episode", splitID[2]))
+				c.Next()
+				return
+			}
+			meta, err = cinemetaClient.GetTVShow(c.Context(), splitID[0], season, episode)
+			if err != nil {
+				logger.Error("Couldn't get TV show info from Cinemeta", zap.Error(err))
+				c.Next()
+				return
+			}
+		}
+		logger.Debug("Got meta from cinemata client", zap.String("meta", fmt.Sprintf("%+v", meta)))
+		c.Locals("meta", meta)
+
+		c.Next()
 	}
 }

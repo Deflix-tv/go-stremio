@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 	"github.com/gofiber/adaptor"
 	"github.com/gofiber/fiber"
 	"github.com/gofiber/fiber/middleware"
@@ -167,6 +168,7 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	}
 
 	logger.Info("Setting up server...")
+	// Fiber app
 	app := fiber.New(&fiber.Settings{
 		ErrorHandler: func(ctx *fiber.Ctx, err error) {
 			code := fiber.StatusInternalServerError
@@ -187,14 +189,25 @@ func (a *Addon) Run(stoppingChan chan bool) {
 		WriteTimeout: 9 * time.Second,
 		IdleTimeout:  9 * time.Second,
 	})
+	// Middlewares
 	app.Use(middleware.Recover())
 	if !a.opts.DisableRequestLogging {
 		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent))
 	}
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
+	if a.opts.PutMetaInContext {
+		cinemetaCache := cinemeta.NewInMemoryCache()
+		cinemetaClient := cinemeta.NewClient(cinemeta.DefaultClientOpts, cinemetaCache, logger)
+		metaMw := createMetaMiddleware(cinemetaClient, logger)
+		// Meta middleware only works for stream requests
+		app.Use("/stream/:type/:id.json", metaMw)
+		app.Use("/:userData/stream/:type/:id.json", metaMw)
+	}
+	// Custom middlewares
 	for _, customMW := range a.customMiddlewares {
 		app.Use(customMW.path, customMW.mw)
 	}
+	// Extra endpoints
 	app.Get("/health", createHealthHandler(logger))
 	// Optional profiling
 	if a.opts.Profiling {
