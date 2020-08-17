@@ -73,6 +73,10 @@ type Options struct {
 	// Only works for stream requests.
 	// Default false.
 	PutMetaInContext bool
+	// Flag for indicating whether to include the movie / TV show name (and year) in the request log.
+	// Only works for stream requests.
+	// Default false.
+	LogMediaName bool
 }
 
 // DefaultOptions is an Options object with default values.

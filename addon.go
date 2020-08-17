@@ -74,6 +74,8 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		return nil, errors.New("Enabling IP or user agent logging doesn't make sense when disabling request logging")
 	} else if opts.Logger != nil && opts.LoggingLevel != "" {
 		return nil, errors.New("Setting a logging level in the options doesn't make sense when you already set a custom logger")
+	} else if opts.DisableRequestLogging && opts.LogMediaName {
+		return nil, errors.New("Enabling media name logging doesn't make sense when disabling request logging")
 	}
 
 	// Set default values
@@ -167,8 +169,9 @@ func (a *Addon) Run(stoppingChan chan bool) {
 		logger.Fatal("The passed stopping channel isn't buffered")
 	}
 
-	logger.Info("Setting up server...")
 	// Fiber app
+
+	logger.Info("Setting up server...")
 	app := fiber.New(&fiber.Settings{
 		ErrorHandler: func(ctx *fiber.Ctx, err error) {
 			code := fiber.StatusInternalServerError
@@ -189,15 +192,20 @@ func (a *Addon) Run(stoppingChan chan bool) {
 		WriteTimeout: 9 * time.Second,
 		IdleTimeout:  9 * time.Second,
 	})
+
 	// Middlewares
+
 	app.Use(middleware.Recover())
+	var cinemetaClient *cinemeta.Client
+	if a.opts.LogMediaName || a.opts.PutMetaInContext {
+		cinemetaCache := cinemeta.NewInMemoryCache()
+		cinemetaClient = cinemeta.NewClient(cinemeta.DefaultClientOpts, cinemetaCache, logger)
+	}
 	if !a.opts.DisableRequestLogging {
-		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent))
+		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent, a.opts.LogMediaName, a.opts.PutMetaInContext, cinemetaClient))
 	}
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
 	if a.opts.PutMetaInContext {
-		cinemetaCache := cinemeta.NewInMemoryCache()
-		cinemetaClient := cinemeta.NewClient(cinemeta.DefaultClientOpts, cinemetaCache, logger)
 		metaMw := createMetaMiddleware(cinemetaClient, logger)
 		// Meta middleware only works for stream requests
 		app.Use("/stream/:type/:id.json", metaMw)
@@ -207,7 +215,9 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	for _, customMW := range a.customMiddlewares {
 		app.Use(customMW.path, customMW.mw)
 	}
+
 	// Extra endpoints
+
 	app.Get("/health", createHealthHandler(logger))
 	// Optional profiling
 	if a.opts.Profiling {
