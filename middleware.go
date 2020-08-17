@@ -50,6 +50,19 @@ func corsMiddleware() func(*fiber.Ctx) {
 }
 
 func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaName, isMediaNameInContext bool, cinemetaClient *cinemeta.Client) func(*fiber.Ctx) {
+	// We always log status, duration, method, URL
+	zapFieldCount := 4
+	if logIPs {
+		// IP and Forwarded-For
+		zapFieldCount += 2
+	}
+	if logUserAgent {
+		zapFieldCount++
+	}
+	if logMediaName {
+		zapFieldCount++
+	}
+
 	base64URLregex := "[A-Za-z0-9-_]+={0,2}"
 	streamURLregex := regexp.MustCompile(`^/(` + base64URLregex + `/)?stream/(movie|series)/.+\.json(\?.*)?$`)
 
@@ -137,82 +150,43 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 			}
 		}
 
+		// TODO: To increase performance, don't create a new slice for every request. Use sync.Pool.
+		zapFields := make([]zap.Field, zapFieldCount)
+
 		duration := time.Since(start).Milliseconds()
 		durationString := strconv.FormatInt(duration, 10) + "ms"
 
+		zapFields[0] = zap.Int("status", c.Fasthttp.Response.StatusCode())
+		zapFields[1] = zap.String("duration", durationString)
+		zapFields[2] = zap.String("method", c.Method())
+		zapFields[3] = zap.String("url", c.OriginalURL())
+		if logIPs {
+			zapFields[4] = zap.String("ip", c.IP())
+			zapFields[5] = zap.Strings("forwardedFor", c.IPs())
+		}
+		if logUserAgent {
+			if !logIPs {
+				zapFields[4] = zap.String("userAgent", c.Get(fiber.HeaderUserAgent))
+			} else {
+				zapFields[6] = zap.String("userAgent", c.Get(fiber.HeaderUserAgent))
+			}
+		}
 		if logMediaName {
 			if mediaName == "" {
 				mediaName = "?"
 			}
-
 			if !logIPs && !logUserAgent {
-				logger.Info("Handled request",
-					zap.Int("status", c.Fasthttp.Response.StatusCode()),
-					zap.String("duration", durationString),
-					zap.String("method", c.Method()),
-					zap.String("url", c.OriginalURL()),
-					zap.String("mediaName", mediaName))
-			} else if logIPs && !logUserAgent {
-				logger.Info("Handled request",
-					zap.Int("status", c.Fasthttp.Response.StatusCode()),
-					zap.String("duration", durationString),
-					zap.String("method", c.Method()),
-					zap.String("url", c.OriginalURL()),
-					zap.String("ip", c.IP()),
-					zap.Strings("forwardedFor", c.IPs()),
-					zap.String("mediaName", mediaName))
+				zapFields[4] = zap.String("mediaName", mediaName)
 			} else if !logIPs && logUserAgent {
-				logger.Info("Handled request",
-					zap.Int("status", c.Fasthttp.Response.StatusCode()),
-					zap.String("duration", durationString),
-					zap.String("method", c.Method()),
-					zap.String("url", c.OriginalURL()),
-					zap.String("userAgent", c.Get(fiber.HeaderUserAgent)),
-					zap.String("mediaName", mediaName))
-			} else {
-				logger.Info("Handled request",
-					zap.Int("status", c.Fasthttp.Response.StatusCode()),
-					zap.String("duration", durationString),
-					zap.String("method", c.Method()),
-					zap.String("url", c.OriginalURL()),
-					zap.String("ip", c.IP()),
-					zap.Strings("forwardedFor", c.IPs()),
-					zap.String("userAgent", c.Get(fiber.HeaderUserAgent)),
-					zap.String("mediaName", mediaName))
-			}
-		} else {
-			if !logIPs && !logUserAgent {
-				logger.Info("Handled request",
-					zap.Int("status", c.Fasthttp.Response.StatusCode()),
-					zap.String("duration", durationString),
-					zap.String("method", c.Method()),
-					zap.String("url", c.OriginalURL()))
+				zapFields[5] = zap.String("mediaName", mediaName)
 			} else if logIPs && !logUserAgent {
-				logger.Info("Handled request",
-					zap.Int("status", c.Fasthttp.Response.StatusCode()),
-					zap.String("duration", durationString),
-					zap.String("method", c.Method()),
-					zap.String("url", c.OriginalURL()),
-					zap.String("ip", c.IP()),
-					zap.Strings("forwardedFor", c.IPs()))
-			} else if !logIPs && logUserAgent {
-				logger.Info("Handled request",
-					zap.Int("status", c.Fasthttp.Response.StatusCode()),
-					zap.String("duration", durationString),
-					zap.String("method", c.Method()),
-					zap.String("url", c.OriginalURL()),
-					zap.String("userAgent", c.Get(fiber.HeaderUserAgent)))
+				zapFields[6] = zap.String("mediaName", mediaName)
 			} else {
-				logger.Info("Handled request",
-					zap.Int("status", c.Fasthttp.Response.StatusCode()),
-					zap.String("duration", durationString),
-					zap.String("method", c.Method()),
-					zap.String("url", c.OriginalURL()),
-					zap.String("ip", c.IP()),
-					zap.Strings("forwardedFor", c.IPs()),
-					zap.String("userAgent", c.Get(fiber.HeaderUserAgent)))
+				zapFields[7] = zap.String("mediaName", mediaName)
 			}
 		}
+
+		logger.Info("Handled request", zapFields...)
 	}
 }
 
