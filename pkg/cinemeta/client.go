@@ -20,7 +20,7 @@ type ClientOptions struct {
 	// Timeout for requests.
 	// A more customizable cancellation can be achieved with the context,
 	// but it can never be *longer* than this timeout.
-	// Default 5 seconds.
+	// Default 2 seconds.
 	Timeout time.Duration
 	// Max age of items in the cache.
 	// Default 30 days.
@@ -31,7 +31,7 @@ type ClientOptions struct {
 var DefaultClientOpts = ClientOptions{
 	BaseURL: "https://v3-cinemeta.strem.io",
 	// HTTP client timeout
-	Timeout: 5 * time.Second,
+	Timeout: 2 * time.Second,
 	TTL:     30 * 24 * time.Hour, // 30 days
 }
 

@@ -199,7 +199,10 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	var cinemetaClient *cinemeta.Client
 	if a.opts.LogMediaName || a.opts.PutMetaInContext {
 		cinemetaCache := cinemeta.NewInMemoryCache()
-		cinemetaClient = cinemeta.NewClient(cinemeta.DefaultClientOpts, cinemetaCache, logger)
+		cinemetaOpts := cinemeta.ClientOptions{
+			Timeout: a.opts.CinemetaTimeout,
+		}
+		cinemetaClient = cinemeta.NewClient(cinemetaOpts, cinemetaCache, logger)
 	}
 	if !a.opts.DisableRequestLogging {
 		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent, a.opts.LogMediaName, a.opts.PutMetaInContext, cinemetaClient))

@@ -77,6 +77,11 @@ type Options struct {
 	// Only works for stream requests.
 	// Default false.
 	LogMediaName bool
+	// Timeout for requests to Cinemeta.
+	// Only relevant when using PutMetaInContext or LogMediaName.
+	// Note that each response is cached for 30 days, so waiting a bit once per movie / TV show per 30 days is acceptable.
+	// Default 2 seconds.
+	CinemetaTimeout time.Duration
 }
 
 // DefaultOptions is an Options object with default values.
