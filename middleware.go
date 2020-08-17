@@ -98,7 +98,7 @@ func createMetaMiddleware(cinemetaClient *cinemeta.Client, logger *zap.Logger) f
 		t := c.Params("type", "")
 		id := c.Params("id", "")
 		if t == "" || id == "" {
-			logger.Warn("Can't determine media type and/or IMDb ID from URL parameters")
+			logger.Warn("Can't determine media type and/or IMDb ID from path parameters")
 			c.Next()
 			return
 		}
