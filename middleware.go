@@ -93,7 +93,7 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent bool) func
 	}
 }
 
-func createMetaMiddleware(cinemetaClient cinemeta.Client, logger *zap.Logger) func(*fiber.Ctx) {
+func createMetaMiddleware(cinemetaClient *cinemeta.Client, logger *zap.Logger) func(*fiber.Ctx) {
 	return func(c *fiber.Ctx) {
 		t := c.Params("type", "")
 		id := c.Params("id", "")

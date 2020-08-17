@@ -45,8 +45,8 @@ type Client struct {
 }
 
 // NewClient creates a new Cinemeta client.
-func NewClient(opts ClientOptions, cache Cache, logger *zap.Logger) Client {
-	return Client{
+func NewClient(opts ClientOptions, cache Cache, logger *zap.Logger) *Client {
+	return &Client{
 		baseURL: opts.BaseURL,
 		httpClient: &http.Client{
 			Timeout: opts.Timeout,
