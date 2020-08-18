@@ -1,6 +1,7 @@
 package stremio
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"math"
@@ -47,7 +48,7 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 			}
 		}
 		if manifestCallback != nil {
-			if status := manifestCallback(userData); status >= 400 {
+			if status := manifestCallback(c.Context(), userData); status >= 400 {
 				c.Status(status)
 				return
 			}
@@ -69,8 +70,8 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
 	handlers := make(map[string]handler, len(catalogHandlers))
 	for k, v := range catalogHandlers {
-		handlers[k] = func(id string, userData interface{}) (interface{}, error) {
-			return v(id, userData)
+		handlers[k] = func(ctx context.Context, id string, userData interface{}) (interface{}, error) {
+			return v(ctx, id, userData)
 		}
 	}
 	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic, handleEtag, logger, userDataType, userDataIsBase64)
@@ -79,14 +80,15 @@ func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge ti
 func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
 	handlers := make(map[string]handler, len(streamHandlers))
 	for k, v := range streamHandlers {
-		handlers[k] = func(id string, userData interface{}) (interface{}, error) {
-			return v(id, userData)
+		handlers[k] = func(ctx context.Context, id string, userData interface{}) (interface{}, error) {
+			return v(ctx, id, userData)
 		}
 	}
 	return createHandler("stream", handlers, []byte("streams"), cacheAge, cachePublic, handleEtag, logger, userDataType, userDataIsBase64)
 }
 
-type handler func(id string, userData interface{}) (interface{}, error)
+// Common handler (same signature as both catalog and stream handler)
+type handler func(ctx context.Context, id string, userData interface{}) (interface{}, error)
 
 func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
 	handlerName = handlerName + "Handler"
@@ -136,7 +138,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			}
 		}
 
-		res, err := handler(requestedID, userData)
+		res, err := handler(c.Context(), requestedID, userData)
 		if err != nil {
 			switch err {
 			case NotFound:

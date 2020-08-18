@@ -57,6 +57,8 @@ Full examples can be found in [examples](./examples). Here's a part of the one f
 package main
 
 import (
+    "context"
+
     "github.com/deflix-tv/go-stremio"
 )
 
@@ -81,7 +83,7 @@ func main() {
     addon.Run(nil)
 }
 
-func movieHandler(id string, userData interface{}) ([]stremio.StreamItem, error) {
+func movieHandler(ctx context.Context, id string, userData interface{}) ([]stremio.StreamItem, error) {
     // We only serve Big Buck Bunny and Sintel
     if id == "tt1254207" {
         return []stremio.StreamItem{

@@ -1,6 +1,7 @@
 package stremio
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	netpprof "net/http/pprof"
@@ -26,21 +27,22 @@ import (
 // If yes, a pointer to an object you registered will be passed. It's nil if the user didn't provide user data.
 // Return an HTTP status code >= 400 to stop further processing and let the addon return that exact status code.
 // Any status code < 400 will lead to the manifest being returned with a 200 OK status code in the response.
-type ManifestCallback func(userData interface{}) int
+type ManifestCallback func(ctx context.Context, userData interface{}) int
 
 // CatalogHandler is the callback for catalog requests for a specific type (like "movie").
 // The id parameter is the catalog ID that you specified yourself in the CatalogItem objects in the Manifest.
 // The userData parameter depends on whether you called `RegisterUserData()` before:
 // If not, a simple string will be passed. It's empty if the user didn't provide user data.
 // If yes, a pointer to an object you registered will be passed. It's nil if the user didn't provide user data.
-type CatalogHandler func(id string, userData interface{}) ([]MetaPreviewItem, error)
+type CatalogHandler func(ctx context.Context, id string, userData interface{}) ([]MetaPreviewItem, error)
 
 // StreamHandler is the callback for stream requests for a specific type (like "movie").
+// The context parameter contains a meta object under the key "meta" if PutMetaInContext was set to true in the addon options.
 // The id parameter can be for example an IMDb ID if your addon handles the "movie" type.
 // The userData parameter depends on whether you called `RegisterUserData()` before:
 // If not, a simple string will be passed. It's empty if the user didn't provide user data.
 // If yes, a pointer to an object you registered will be passed. It's nil if the user didn't provide user data.
-type StreamHandler func(id string, userData interface{}) ([]StreamItem, error)
+type StreamHandler func(ctx context.Context, id string, userData interface{}) ([]StreamItem, error)
 
 // Addon represents a remote addon.
 // You can create one with NewAddon() and then run it with Run().

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -116,7 +117,7 @@ func main() {
 }
 
 func createMovieHandler(logger *zap.Logger) stremio.StreamHandler {
-	return func(id string, userData interface{}) ([]stremio.StreamItem, error) {
+	return func(ctx context.Context, id string, userData interface{}) ([]stremio.StreamItem, error) {
 		// We only serve Big Buck Bunny
 		if id == "tt1254207" {
 			// User provided no data
@@ -185,7 +186,7 @@ func createCustomMiddleware(logger *zap.Logger) fiber.Handler {
 
 // Manifest callback which prevents installations by unknown users and logs successful installations
 func createManifestCallback(logger *zap.Logger) stremio.ManifestCallback {
-	return func(userData interface{}) int {
+	return func(ctx context.Context, userData interface{}) int {
 		// User provided no data
 		if userData == nil {
 			return fiber.StatusUnauthorized

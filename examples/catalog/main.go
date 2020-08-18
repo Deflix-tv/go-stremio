@@ -1,7 +1,7 @@
 package main
 
 import (
-	"time"
+	"context"
 
 	"github.com/deflix-tv/go-stremio"
 )
@@ -53,7 +53,7 @@ func main() {
 	addon.Run(nil)
 }
 
-func movieHandler(id string, userData interface{}) ([]stremio.MetaPreviewItem, error) {
+func movieHandler(ctx context.Context, id string, userData interface{}) ([]stremio.MetaPreviewItem, error) {
 	if id != "blender" {
 		return nil, stremio.NotFound
 	}
