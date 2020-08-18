@@ -22,8 +22,8 @@ The code in `addon.go` is does exactly the same as the Node.js addon, but uses t
 On a fresh Ubuntu 20.04 machine run it with:
 
 ```bash
-# Install Go 1.14, which is the latest version as of writing this
-curl -sL -o go.tar.gz https://dl.google.com/go/go1.14.4.linux-amd64.tar.gz
+# Install Go 1.15, which is the latest version as of writing this
+curl -sL -o go.tar.gz https://dl.google.com/go/go1.15.linux-amd64.tar.gz
 tar -C /usr/local -xzf go.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 . ~/.bashrc
@@ -93,7 +93,7 @@ apt install -y nodejs
 npm install stremio-addon-sdk
 
 # Set up Go
-curl -sL -o go.tar.gz https://dl.google.com/go/go1.14.4.linux-amd64.tar.gz
+curl -sL -o go.tar.gz https://dl.google.com/go/go1.15.linux-amd64.tar.gz
 tar -C /usr/local -xzf go.tar.gz
 echo 'export PATH="/usr/local/go/bin:~/go/bin:$PATH"' >> ~/.bashrc
 set -ux
