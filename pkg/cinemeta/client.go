@@ -46,6 +46,15 @@ type Client struct {
 
 // NewClient creates a new Cinemeta client.
 func NewClient(opts ClientOptions, cache Cache, logger *zap.Logger) *Client {
+	// Set defaults if necessary.
+	// A TTL of 0 is allowed.
+	if opts.BaseURL == "" {
+		opts.BaseURL = DefaultClientOpts.BaseURL
+	}
+	if opts.Timeout == 0 {
+		opts.Timeout = DefaultClientOpts.Timeout
+	}
+
 	return &Client{
 		baseURL: opts.BaseURL,
 		httpClient: &http.Client{
