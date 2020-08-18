@@ -24,6 +24,7 @@ type Options struct {
 	// Only logs with the same or a higher log level will be shown.
 	// For example when you set it to "info", info, warn and error logs will be shown, but no debug logs.
 	// Accepts "debug", "info", "warn" and "error".
+	// Only required when not already setting the Logger in the options.
 	// Default "info".
 	LoggingLevel string
 	// Flag for indicating whether requests should be logged.
