@@ -171,13 +171,14 @@ func createCustomMiddleware(logger *zap.Logger) fiber.Handler {
 		// of the remaining request processing in other middlewares and handlers
 		lock.Unlock()
 
-		metaIface := c.Locals("meta")
-		if metaIface == nil {
-			logger.Error("No meta in context")
-		} else if meta, ok := metaIface.(cinemeta.Meta); ok {
-			logger.Info("User is asking for stream", zap.String("movie", meta.Name))
+		if meta, err := cinemeta.GetMetaFromContext(c.Context()); err != nil {
+			if err == cinemeta.ErrNoMeta {
+				logger.Warn("Meta not found in context")
+			} else {
+				logger.Error("Couldn't get meta from context", zap.Error(err))
+			}
 		} else {
-			logger.Error("Couldn't turn meta interface value to proper object", zap.String("type", fmt.Sprintf("%T", metaIface)))
+			logger.Info("User is asking for stream", zap.String("movie", meta.Name))
 		}
 
 		c.Next()

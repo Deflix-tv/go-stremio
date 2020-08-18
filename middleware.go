@@ -140,13 +140,14 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 		// We can wait for the wg in any case, as it immediately returns in case no goroutine was started.
 		wg.Wait()
 		if logMediaName && isMediaNameInContext && isStream {
-			metaIface := c.Locals("meta")
-			if metaIface == nil {
-				logger.Error("No meta in context")
-			} else if meta, ok := metaIface.(cinemeta.Meta); ok {
-				mediaName = fmt.Sprintf("%v (%v)", meta.Name, meta.ReleaseInfo)
+			if meta, err := cinemeta.GetMetaFromContext(c.Context()); err != nil {
+				if err == cinemeta.ErrNoMeta {
+					logger.Warn("Meta not found in context")
+				} else {
+					logger.Error("Couldn't get meta from context", zap.Error(err))
+				}
 			} else {
-				logger.Error("Couldn't turn meta interface value to proper object", zap.String("type", fmt.Sprintf("%T", metaIface)))
+				mediaName = fmt.Sprintf("%v (%v)", meta.Name, meta.ReleaseInfo)
 			}
 		}
 
