@@ -78,6 +78,10 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		return nil, errors.New("Setting a logging level in the options doesn't make sense when you already set a custom logger")
 	} else if opts.DisableRequestLogging && opts.LogMediaName {
 		return nil, errors.New("Enabling media name logging doesn't make sense when disabling request logging")
+	} else if opts.CinemetaClient != nil && !opts.LogMediaName && !opts.PutMetaInContext {
+		return nil, errors.New("Setting a Cinemeta client when neither logging the media name nor putting it in the context doesn't make sense")
+	} else if opts.CinemetaClient != nil && opts.CinemetaTimeout != 0 {
+		return nil, errors.New("Setting a Cinemeta timeout doesn't make sense when you already set a Cinemeta client")
 	}
 
 	// Set default values
@@ -202,7 +206,7 @@ func (a *Addon) Run(stoppingChan chan bool) {
 
 	app.Use(middleware.Recover())
 	var cinemetaClient *cinemeta.Client
-	if a.opts.LogMediaName || a.opts.PutMetaInContext {
+	if cinemetaClient == nil && (a.opts.LogMediaName || a.opts.PutMetaInContext) {
 		cinemetaCache := cinemeta.NewInMemoryCache()
 		cinemetaOpts := cinemeta.ClientOptions{
 			Timeout: a.opts.CinemetaTimeout,
