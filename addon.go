@@ -88,6 +88,9 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	if opts.Port == 0 {
 		opts.Port = DefaultOptions.Port
 	}
+	if opts.CinemetaTimeout == 0 {
+		opts.CinemetaTimeout = DefaultOptions.CinemetaTimeout
+	}
 
 	// Configure logger if no custom one is set
 	if opts.Logger == nil {
