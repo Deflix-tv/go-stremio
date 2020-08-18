@@ -56,6 +56,7 @@ type Addon struct {
 	customEndpoints   []customEndpoint
 	manifestCallback  ManifestCallback
 	userDataType      reflect.Type
+	cinemetaClient    *cinemeta.Client
 }
 
 // NewAddon creates a new Addon object that can be started with Run().
@@ -105,6 +106,15 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 			return nil, fmt.Errorf("Couldn't create new logger: %w", err)
 		}
 	}
+	// Configure Cinemeta client if no custom one is set
+	var cinemetaClient *cinemeta.Client
+	if cinemetaClient == nil && (opts.LogMediaName || opts.PutMetaInContext) {
+		cinemetaCache := cinemeta.NewInMemoryCache()
+		cinemetaOpts := cinemeta.ClientOptions{
+			Timeout: opts.CinemetaTimeout,
+		}
+		opts.CinemetaClient = cinemeta.NewClient(cinemetaOpts, cinemetaCache, opts.Logger)
+	}
 
 	// Create and return addon
 	return &Addon{
@@ -113,6 +123,7 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		streamHandlers:  streamHandlers,
 		opts:            opts,
 		logger:          opts.Logger,
+		cinemetaClient:  opts.CinemetaClient,
 	}, nil
 }
 
@@ -205,20 +216,12 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	// Middlewares
 
 	app.Use(middleware.Recover())
-	var cinemetaClient *cinemeta.Client
-	if cinemetaClient == nil && (a.opts.LogMediaName || a.opts.PutMetaInContext) {
-		cinemetaCache := cinemeta.NewInMemoryCache()
-		cinemetaOpts := cinemeta.ClientOptions{
-			Timeout: a.opts.CinemetaTimeout,
-		}
-		cinemetaClient = cinemeta.NewClient(cinemetaOpts, cinemetaCache, logger)
-	}
 	if !a.opts.DisableRequestLogging {
-		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent, a.opts.LogMediaName, a.opts.PutMetaInContext, cinemetaClient))
+		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent, a.opts.LogMediaName, a.opts.PutMetaInContext, a.cinemetaClient))
 	}
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
 	if a.opts.PutMetaInContext {
-		metaMw := createMetaMiddleware(cinemetaClient, logger)
+		metaMw := createMetaMiddleware(a.cinemetaClient, logger)
 		// Meta middleware only works for stream requests
 		app.Use("/stream/:type/:id.json", metaMw)
 		app.Use("/:userData/stream/:type/:id.json", metaMw)
