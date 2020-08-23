@@ -87,6 +87,7 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 				id := c.Params("id", "")
 				if t == "" || id == "" {
 					logger.Warn("Can't determine media type and/or IMDb ID from path parameters")
+					wg.Done()
 					return
 				}
 
@@ -97,27 +98,32 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 					meta, err = cinemetaClient.GetMovie(c.Context(), id)
 					if err != nil {
 						logger.Error("Couldn't get movie info from Cinemeta", zap.Error(err))
+						wg.Done()
 						return
 					}
 				case "series":
 					splitID := strings.Split(id, ":")
 					if len(splitID) != 3 {
 						logger.Warn("No 3 elements after splitting TV show ID by \":\"", zap.String("id", id))
+						wg.Done()
 						return
 					}
 					season, err := strconv.Atoi(splitID[1])
 					if err != nil {
 						logger.Warn("Can't parse season as int", zap.String("season", splitID[1]))
+						wg.Done()
 						return
 					}
 					episode, err := strconv.Atoi(splitID[2])
 					if err != nil {
 						logger.Warn("Can't parse episode as int", zap.String("episode", splitID[2]))
+						wg.Done()
 						return
 					}
 					meta, err = cinemetaClient.GetTVShow(c.Context(), splitID[0], season, episode)
 					if err != nil {
 						logger.Error("Couldn't get TV show info from Cinemeta", zap.Error(err))
+						wg.Done()
 						return
 					}
 				}
