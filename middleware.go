@@ -59,9 +59,7 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 	if logUserAgent {
 		zapFieldCount++
 	}
-	if logMediaName {
-		zapFieldCount++
-	}
+	// For the media name it depends on if it's a stream request or not
 
 	base64URLregex := "[A-Za-z0-9-_]+={0,2}"
 	streamURLregex := regexp.MustCompile(`^/(` + base64URLregex + `/)?stream/(movie|series)/.+\.json(\?.*)?$`)
@@ -151,6 +149,9 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 			}
 		}
 
+		if logMediaName && isStream {
+			zapFieldCount++
+		}
 		// TODO: To increase performance, don't create a new slice for every request. Use sync.Pool.
 		zapFields := make([]zap.Field, zapFieldCount)
 
@@ -172,7 +173,7 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 				zapFields[6] = zap.String("userAgent", c.Get(fiber.HeaderUserAgent))
 			}
 		}
-		if logMediaName {
+		if logMediaName && isStream {
 			if mediaName == "" {
 				mediaName = "?"
 			}
