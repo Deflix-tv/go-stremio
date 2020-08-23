@@ -36,12 +36,15 @@ It provides the most important parts of the Node.js SDK and depending on the req
 - [x] Health check endpoint
 - [x] Optional profiling endpoints (for `go pprof`)
 - [x] Optional request logging
+  - [x] With optional movie / TV show name in the log (instead of just the IMDb ID)
+  - [x] With optional client IP address and user agent logging to create privacy-preserving addons
 - [x] Optional cache control and ETag handling
-- [x] Optional custom middleware
+- [x] Optional custom middlewares
 - [x] Optional custom endpoints
 - [x] Custom user data (users can have *settings* for your addon!)
   - [x] With optional URL-safe Base64 decoding and JSON unmarshalling
 - [x] Addon installation callback (manifest endpoint)
+- [x] Cinemeta client in the independent `cinemeta` package
 
 Current *non*-features, as they're usually part of a reverse proxy deployed in front of the service:
 
