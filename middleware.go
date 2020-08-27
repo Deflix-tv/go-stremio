@@ -155,11 +155,13 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 			}
 		}
 
-		if logMediaName && isStream {
-			zapFieldCount++
-		}
+		var zapFields []zap.Field
 		// TODO: To increase performance, don't create a new slice for every request. Use sync.Pool.
-		zapFields := make([]zap.Field, zapFieldCount)
+		if logMediaName && isStream {
+			zapFields = make([]zap.Field, zapFieldCount+1)
+		} else {
+			zapFields = make([]zap.Field, zapFieldCount)
+		}
 
 		duration := time.Since(start).Milliseconds()
 		durationString := strconv.FormatInt(duration, 10) + "ms"
