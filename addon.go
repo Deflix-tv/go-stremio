@@ -206,7 +206,6 @@ func (a *Addon) Run(stoppingChan chan bool) {
 		},
 		DisableStartupMessage: true,
 		BodyLimit:             0,
-		ReadBufferSize:        1000, // 1 KB
 		ReadTimeout:           5 * time.Second,
 		// Docker stop only gives us 10s. We want to close all connections before that.
 		WriteTimeout: 9 * time.Second,
