@@ -66,7 +66,7 @@ type Options struct {
 	HandleEtagCatalogs bool
 	// Same as HandleEtagCatalogs, but for streams.
 	HandleEtagStreams bool
-	// Flag for indicating whether user data should is Base64-encoded.
+	// Flag for indicating whether user data is Base64-encoded.
 	// As the user data is in the URL it needs to be the URL-safe Base64 encoding described in RFC 4648.
 	// When true, go-stremio first decodes the value before passing or unmarshalling it.
 	// Default false.
