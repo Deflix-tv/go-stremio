@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -217,7 +218,9 @@ func decodeUserData(data string, t reflect.Type, logger *zap.Logger, userDataIsB
 	var userDataDecoded []byte
 	var err error
 	if userDataIsBase64 {
-		userDataDecoded, err = base64.URLEncoding.DecodeString(data)
+		// Remove padding so that both Base64URL values with and without padding work.
+		data = strings.TrimSuffix(data, "=")
+		userDataDecoded, err = base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(data)
 	} else {
 		var userDataDecodedString string
 		userDataDecodedString, err = url.PathUnescape(data)
