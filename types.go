@@ -34,8 +34,10 @@ type ResourceItem struct {
 
 type BehaviorHints struct {
 	// Note: Must include `omitempty`, otherwise it will be included if this struct is used in another one, even if the field of the containing struct is marked as `omitempty`
-	Adult bool `json:"adult,omitempty"`
-	P2P   bool `json:"p2p,omitempty"`
+	Adult                 bool `json:"adult,omitempty"`
+	P2P                   bool `json:"p2p,omitempty"`
+	Configurable          bool `json:"configurable,omitempty"`
+	ConfigurationRequired bool `json:"configurationRequired,omitempty"`
 }
 
 // CatalogItem represents a catalog.

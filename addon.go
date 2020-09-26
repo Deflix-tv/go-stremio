@@ -83,6 +83,8 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		return nil, errors.New("Setting a Cinemeta client when neither logging the media name nor putting it in the context doesn't make sense")
 	} else if opts.CinemetaClient != nil && opts.CinemetaTimeout != 0 {
 		return nil, errors.New("Setting a Cinemeta timeout doesn't make sense when you already set a Cinemeta client")
+	} else if manifest.BehaviorHints.ConfigurationRequired && !manifest.BehaviorHints.Configurable {
+		return nil, errors.New("Requiring a configuration only makes sense when also making the addon configurable")
 	}
 
 	// Set default values
