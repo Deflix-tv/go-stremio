@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"net/url"
@@ -237,5 +238,6 @@ func decodeUserData(data string, t reflect.Type, logger *zap.Logger, userDataIsB
 		logger.Warn("Couldn't unmarshal user data", zap.Error(err))
 		return nil, err
 	}
+	logger.Debug("Decoded user data", zap.String("userData", fmt.Sprintf("%+v", userData)))
 	return userData, nil
 }
