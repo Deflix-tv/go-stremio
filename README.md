@@ -42,6 +42,7 @@ It provides the most important parts of the Node.js SDK and depending on the req
 - [x] Optional custom middlewares
 - [x] Optional custom endpoints
 - [x] Custom user data (users can have *settings* for your addon!)
+  - [x] Including the handling of Stremio's requests to the "/configure" endpoint to show a webpage for the addon's configuration
   - [x] With optional URL-safe Base64 decoding and JSON unmarshalling
 - [x] Addon installation callback (manifest endpoint)
 - [x] Cinemeta client in the independent `cinemeta` package
