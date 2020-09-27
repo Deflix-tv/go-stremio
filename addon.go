@@ -83,6 +83,11 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		return nil, errors.New("Setting a Cinemeta client when neither logging the media name nor putting it in the context doesn't make sense")
 	} else if opts.CinemetaClient != nil && opts.CinemetaTimeout != 0 {
 		return nil, errors.New("Setting a Cinemeta timeout doesn't make sense when you already set a Cinemeta client")
+	} else if manifest.BehaviorHints.ConfigurationRequired && !manifest.BehaviorHints.Configurable {
+		return nil, errors.New("Requiring a configuration only makes sense when also making the addon configurable")
+	} else if opts.ConfigureHTMLfs != nil && !manifest.BehaviorHints.Configurable {
+		return nil, errors.New("Setting a ConfigureHTMLfs only makes sense when also making the addon configurable")
+		// Note: The other way around is fine: We allow an addon creator to make the addon configurable, but then add his own "/configure" endpoint.
 	}
 
 	// Set default values
@@ -264,6 +269,19 @@ func (a *Addon) Run(stoppingChan chan bool) {
 		streamHandler := createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger, a.userDataType, a.opts.UserDataIsBase64)
 		app.Get("/stream/:type/:id.json", streamHandler)
 		app.Get("/:userData/stream/:type/:id.json", streamHandler)
+	}
+	if a.opts.ConfigureHTMLfs != nil {
+		// fsmw := middleware.FileSystem(a.opts.ConfigureHTMLfs)
+		app.Use("/configure", middleware.FileSystem(a.opts.ConfigureHTMLfs))
+		// When a Stremio user has the addon already installed and configures it again, this endpoint is called,
+		// theoretically enabling the addon to deliver a website with the configuration fields populated with the currently configured values.
+		// The Fiber filesystem middleware currently doesn't work with parameters in the route (see https://github.com/gofiber/fiber/issues/834),
+		// so we'll just redirect to the original one, as we don't use the existing configuration anyway.
+		// TODO: At some point we should populate the config fields with the existing configuration.
+		app.Get("/:userData/configure", func(c *fiber.Ctx) {
+			c.Set("Location", c.BaseURL()+"/configure")
+			c.SendStatus(fiber.StatusMovedPermanently)
+		})
 	}
 
 	// Additional endpoints

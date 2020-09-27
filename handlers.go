@@ -32,14 +32,22 @@ func createHealthHandler(logger *zap.Logger) func(*fiber.Ctx) {
 }
 
 func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallback ManifestCallback, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
+	// When there's user data we want Stremio to show the "Install" button, which it only does when "configurationRequired" is false.
+	// To not change the boolean value of the manifest object on the fly and thus mess with a single object across concurrent goroutines, we copy it and return two different objects.
+	configuredManifest := manifest
+	if manifest.BehaviorHints.ConfigurationRequired {
+		configuredManifest.BehaviorHints.ConfigurationRequired = false
+	}
 	return func(c *fiber.Ctx) {
 		logger.Debug("manifestHandler called")
 
 		// First call the callback so the SDK user can prevent further processing
 		var userData interface{}
 		userDataString := c.Params("userData")
+		configured := false
 		if userDataType == nil {
 			userData = userDataString
+			configured = true
 		} else if userDataString == "" {
 			userData = nil
 		} else {
@@ -48,6 +56,7 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 				c.Status(fiber.StatusBadRequest)
 				return
 			}
+			configured = true
 		}
 		if manifestCallback != nil {
 			if status := manifestCallback(c.Context(), userData); status >= 400 {
@@ -56,7 +65,13 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 			}
 		}
 
-		resBody, err := json.Marshal(manifest)
+		var resBody []byte
+		var err error
+		if configured {
+			resBody, err = json.Marshal(configuredManifest)
+		} else {
+			resBody, err = json.Marshal(manifest)
+		}
 		if err != nil {
 			logger.Error("Couldn't marshal manifest", zap.Error(err))
 			c.Status(fiber.StatusInternalServerError)

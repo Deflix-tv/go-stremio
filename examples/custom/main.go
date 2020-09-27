@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync/atomic"
 
 	"github.com/deflix-tv/go-stremio"
@@ -31,6 +32,11 @@ var (
 		Catalogs: []stremio.CatalogItem{},
 
 		IDprefixes: []string{"tt"},
+
+		BehaviorHints: stremio.BehaviorHints{
+			Configurable:          true,
+			ConfigurationRequired: true,
+		},
 	}
 
 	streams = []stremio.StreamItem{
@@ -83,6 +89,8 @@ func main() {
 		UserDataIsBase64: true,
 		// We want to access the cinemeta.Meta from the context
 		PutMetaInContext: true,
+		// In order for this to work properly, the "web" directory must be located in the same directory as the executable of this addon.
+		ConfigureHTMLfs: http.Dir("web"),
 	}
 
 	// Create addon
@@ -97,6 +105,7 @@ func main() {
 	// Add a custom middleware that blocks unauthorized requests, but only for selected endpoints.
 	// This allows requests to:
 	// - The manifest without user data (Stremio needs that)
+	// - The configure endpoint (where a user doesn't have encoded user data yet, or even with user data it doesn't matter)
 	// - The health endpoint, which our service discovery or container orchestrator might need
 	// Another reason is that adding it to "/" only would lead to the middleware not being able to read the userData URL parameter.
 	authMiddleware := createAuthMiddleware(addon, logger)

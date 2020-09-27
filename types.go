@@ -34,8 +34,11 @@ type ResourceItem struct {
 
 type BehaviorHints struct {
 	// Note: Must include `omitempty`, otherwise it will be included if this struct is used in another one, even if the field of the containing struct is marked as `omitempty`
-	Adult bool `json:"adult,omitempty"`
-	P2P   bool `json:"p2p,omitempty"`
+	Adult        bool `json:"adult,omitempty"`
+	P2P          bool `json:"p2p,omitempty"`
+	Configurable bool `json:"configurable,omitempty"`
+	// If you set this to true, it will be true for the "/manifest.json" endpoint, but false for the "/:userData/manifest.json" endpoint, because otherwise Stremio won't show the "Install" button in its UI.
+	ConfigurationRequired bool `json:"configurationRequired,omitempty"`
 }
 
 // CatalogItem represents a catalog.
