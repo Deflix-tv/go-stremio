@@ -1,6 +1,7 @@
 package stremio
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
@@ -90,6 +91,11 @@ type Options struct {
 	// Note that each response is cached for 30 days, so waiting a bit once per movie / TV show per 30 days is acceptable.
 	// Default 2 seconds.
 	CinemetaTimeout time.Duration
+	// "File system" with HTML files that will be served for the "/configure" endpoint.
+	// Typically an `http.Dir`, which you can simply create with `http.Dir("/path/to/html/files")`.
+	// No configure endpoint will be created if this is nil, so you can add a custom one.
+	// Default nil.
+	ConfigureHTMLfs http.FileSystem
 }
 
 // DefaultOptions is an Options object with default values.
