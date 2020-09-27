@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <!-- You might want to add these.
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/style.css">
+  -->
+
+  <meta charset="utf-8">
+  <meta name="description" content="Stremio stream addon for free movies that were made with Blender, customizable via user data">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Custom Blender movie streams</title>
+</head>
+
+<body>
+  <header>
+    <nav>
+      <a href="/configure">Configure</a>
+    </nav>
+  </header>
+  <hr>
+  <main>
+    <header>
+    <h2>Custom Blender movie streams</h2>
+    </header>
+    <p>Stremio stream addon for free movies that were made with Blender, customizable via user data</p>
+    <section>
+      <header>
+        <h2>Install</h2>
+      </header>
+      <form>
+        <label for="userId">User ID:</label>
+        <input type="text" id="userId" placeholder="123">
+        <br>
+        <label for="token">Token:</label>
+        <input type="text" id="token" placeholder="abc">
+        <br>
+        <label>Preferred stream type:</label>
+        <br>
+        <input type="checkbox" id="torrent" name="Torrent" value="torrent">
+        <label for="torrent">Torrent</label>
+        <br>
+        <input type="checkbox" id="http" name="HTTP" value="http">
+        <label for="http">HTTP</label>
+        <br>
+        <button type="button" onclick="install(); return false;">Install</button>
+      </form>
+    </section>
+  </main>
+  <hr>
+  <footer>
+    <p>Made by <a href="https://www.github.com/doingodswork/" target="_blank"><em>doingodswork</em> ↗</a></p>
+  </footer>
+
+  <script>
+    function install() {
+      var userId = document.getElementById("userId").value;
+      var token = document.getElementById("token").value;
+      var torrent = document.getElementById("torrent").checked;
+      var http = document.getElementById("http").checked;
+
+      var ok = true;
+      if (userId == null || userId.length === 0) {
+        ok = false;
+        document.getElementById("userId").style.backgroundColor = "#ff3333";
+      } else {
+        document.getElementById("userId").style.backgroundColor = "";
+      }
+      if (token == null || token.length === 0) {
+        ok = false;
+        document.getElementById("token").style.backgroundColor = "#ff3333";
+      } else {
+        document.getElementById("token").style.backgroundColor = "";
+      }
+
+      if (ok) {
+        var userData = {userId: userId, token: token}
+        // Don't set a preference if none or both are set.
+        if (torrent && !http){
+            userData.preferredStreamType = "torrent"
+        } else if (!torrent && http){
+            userData.preferredStreamType = "http"
+        }
+        // Encode to Base64, make URL-safe, remove padding (leading to Base64URL as described in RFC 4648).
+        var encoded = btoa(JSON.stringify(userData)).replace(/\+/g, '-').replace(/\//g, '_').split('=')[0]
+        window.location.href = "stremio://localhost:8080/" + encoded + "/manifest.json";
+      }
+    }
+  </script>
+</body>
+
+</html>
