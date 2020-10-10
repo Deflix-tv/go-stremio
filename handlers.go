@@ -45,18 +45,23 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 		var userData interface{}
 		userDataString := c.Params("userData")
 		configured := false
-		if userDataType == nil {
-			userData = userDataString
-			configured = true
-		} else if userDataString == "" {
-			userData = nil
-		} else {
-			var err error
-			if userData, err = decodeUserData(userDataString, userDataType, logger, userDataIsBase64); err != nil {
-				c.Status(fiber.StatusBadRequest)
-				return
+		if userDataString == "" {
+			if userDataType == nil {
+				userData = ""
+			} else {
+				userData = nil
 			}
+		} else {
 			configured = true
+			if userDataType == nil {
+				userData = userDataString
+			} else {
+				var err error
+				if userData, err = decodeUserData(userDataString, userDataType, logger, userDataIsBase64); err != nil {
+					c.Status(fiber.StatusBadRequest)
+					return
+				}
+			}
 		}
 		if manifestCallback != nil {
 			if status := manifestCallback(c.Context(), userData); status >= 400 {
