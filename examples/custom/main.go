@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"sync/atomic"
 
+	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
+
 	"github.com/deflix-tv/go-stremio"
 	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
-	"github.com/gofiber/fiber"
-	"go.uber.org/zap"
 )
 
 var (
@@ -160,51 +161,46 @@ func createMovieHandler(logger *zap.Logger) stremio.StreamHandler {
 // Custom middleware that blocks unauthorized requests.
 // Showcases the usage of user data when it's not passed from go-stremio.
 func createAuthMiddleware(addon *stremio.Addon, logger *zap.Logger) fiber.Handler {
-	return func(c *fiber.Ctx) {
+	return func(c *fiber.Ctx) error {
 		// We used "/:userData" when creating the auth middleware
 		userDataString := c.Params("userData", "")
 		if userDataString == "" {
 			logger.Info("Someone sent a request without user data")
-			c.Status(fiber.StatusUnauthorized)
-			return
+			return c.SendStatus(fiber.StatusUnauthorized)
 		}
 
 		// We used "/:userData" when creating the auth middleware, so we must pass that parameter name to access the custom user data.
 		userData, err := addon.DecodeUserData("userData", c)
 		if err != nil {
 			logger.Warn("Couldn't decode user data", zap.Error(err))
-			c.Status(fiber.StatusBadRequest)
-			return
+			return c.SendStatus(fiber.StatusBadRequest)
 		}
 		u, ok := userData.(*customer)
 		if !ok {
 			t := fmt.Sprintf("%T", userData)
 			logger.Error("Couldn't convert user data to customer object", zap.String("type", t))
-			c.Status(fiber.StatusInternalServerError)
-			return
+			return c.SendStatus(fiber.StatusInternalServerError)
 		}
 
 		// Empty user IDs and tokens can be rejected immediately
 		if u.UserID == "" || u.Token == "" {
-			c.Status(fiber.StatusUnauthorized)
-			return
+			return c.SendStatus(fiber.StatusUnauthorized)
 		}
 
 		// For others we don't want to leak whether a userID is true when a password was wrong, so either both are OK or the request is forbidden.
 		for _, allowedUser := range allowedUsers {
 			if u.UserID == allowedUser.UserID && u.Token == allowedUser.Token {
-				c.Next()
-				return
+				return c.Next()
 			}
 		}
-		c.Status(fiber.StatusForbidden)
+		return c.SendStatus(fiber.StatusForbidden)
 	}
 }
 
 // Custom middleware that logs which movie (name) a user is asking for.
 // Showcases the usage of meta info in the context.
 func createMetaMiddleware(logger *zap.Logger) fiber.Handler {
-	return func(c *fiber.Ctx) {
+	return func(c *fiber.Ctx) error {
 		if meta, err := cinemeta.GetMetaFromContext(c.Context()); err != nil {
 			if err == cinemeta.ErrNoMeta {
 				logger.Warn("Meta not found in context")
@@ -215,7 +211,7 @@ func createMetaMiddleware(logger *zap.Logger) fiber.Handler {
 			logger.Info("User is asking for stream", zap.String("movie", meta.Name))
 		}
 
-		c.Next()
+		return c.Next()
 	}
 }
 
@@ -250,9 +246,9 @@ func createManifestCallback(logger *zap.Logger) stremio.ManifestCallback {
 	}
 }
 
-func createCustomEndpoint(logger *zap.Logger) func(*fiber.Ctx) {
-	return func(c *fiber.Ctx) {
+func createCustomEndpoint(logger *zap.Logger) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		logger.Info("A user called the ping endpoint")
-		c.SendString("pong")
+		return c.SendString("pong")
 	}
 }

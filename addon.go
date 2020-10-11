@@ -13,11 +13,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
-	"github.com/gofiber/adaptor"
-	"github.com/gofiber/fiber"
-	"github.com/gofiber/fiber/middleware"
+	"github.com/gofiber/adaptor/v2"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"go.uber.org/zap"
+
+	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 )
 
 // ManifestCallback is the callback for manifest requests, so mostly addon installations.
@@ -197,8 +199,8 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	// Fiber app
 
 	logger.Info("Setting up server...")
-	app := fiber.New(&fiber.Settings{
-		ErrorHandler: func(ctx *fiber.Ctx, err error) {
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
@@ -206,8 +208,8 @@ func (a *Addon) Run(stoppingChan chan bool) {
 			} else {
 				logger.Error("Fiber's error handler was called", zap.Error(err))
 			}
-			ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
-			ctx.Status(code).SendString("An internal server error occurred")
+			c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
+			return c.Status(code).SendString("An internal server error occurred")
 		},
 		DisableStartupMessage: true,
 		BodyLimit:             0,
@@ -219,7 +221,7 @@ func (a *Addon) Run(stoppingChan chan bool) {
 
 	// Middlewares
 
-	app.Use(middleware.Recover())
+	app.Use(recover.New())
 	if !a.opts.DisableRequestLogging {
 		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent, a.opts.LogMediaName, a.manifest.BehaviorHints.ConfigurationRequired))
 	}
@@ -244,9 +246,9 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	if a.opts.Profiling {
 		group := app.Group("/debug/pprof")
 
-		group.Get("/", func(c *fiber.Ctx) {
+		group.Get("/", func(c *fiber.Ctx) error {
 			c.Set(fiber.HeaderContentType, fiber.MIMETextHTML)
-			adaptor.HTTPHandlerFunc(netpprof.Index)(c)
+			return adaptor.HTTPHandlerFunc(netpprof.Index)(c)
 		})
 		for _, p := range pprof.Profiles() {
 			group.Get("/"+p.Name(), adaptor.HTTPHandler(netpprof.Handler(p.Name())))
@@ -280,16 +282,18 @@ func (a *Addon) Run(stoppingChan chan bool) {
 		app.Get("/:userData/stream/:type/:id.json", streamHandler)
 	}
 	if a.opts.ConfigureHTMLfs != nil {
-		// fsmw := middleware.FileSystem(a.opts.ConfigureHTMLfs)
-		app.Use("/configure", middleware.FileSystem(a.opts.ConfigureHTMLfs))
+		fsConfig := filesystem.Config{
+			Root: a.opts.ConfigureHTMLfs,
+		}
+		app.Use("/configure", filesystem.New(fsConfig))
 		// When a Stremio user has the addon already installed and configures it again, this endpoint is called,
 		// theoretically enabling the addon to deliver a website with the configuration fields populated with the currently configured values.
 		// The Fiber filesystem middleware currently doesn't work with parameters in the route (see https://github.com/gofiber/fiber/issues/834),
 		// so we'll just redirect to the original one, as we don't use the existing configuration anyway.
 		// TODO: At some point we should populate the config fields with the existing configuration.
-		app.Get("/:userData/configure", func(c *fiber.Ctx) {
+		app.Get("/:userData/configure", func(c *fiber.Ctx) error {
 			c.Set("Location", c.BaseURL()+"/configure")
-			c.SendStatus(fiber.StatusMovedPermanently)
+			return c.SendStatus(fiber.StatusMovedPermanently)
 		})
 	}
 
