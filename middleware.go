@@ -49,7 +49,7 @@ func corsMiddleware() func(*fiber.Ctx) {
 	return cors.New(config)
 }
 
-func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaName, isMediaNameInContext bool, cinemetaClient *cinemeta.Client) func(*fiber.Ctx) {
+func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaName, isMediaNameInContext bool, cinemetaClient *cinemeta.Client, requiresUserData bool) func(*fiber.Ctx) {
 	// We always log status, duration, method, URL
 	zapFieldCount := 4
 	if logIPs {
@@ -63,22 +63,30 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 
 	base64URLregex := "[A-Za-z0-9-_]+={0,2}"
 	streamURLregex := regexp.MustCompile(`^/(` + base64URLregex + `/)?stream/(movie|series)/.+\.json(\?.*)?$`)
+	notConfiguredRegex := regexp.MustCompile(`^/stream/(movie|series)/.*$`)
 
 	return func(c *fiber.Ctx) {
 		start := time.Now()
 
 		// Logging media name only works for stream requests
 		var isStream bool
+		var isConfigured bool
 		if logMediaName {
 			isStream = streamURLregex.MatchString(c.Path())
+			// Only check if the addon *requires* user data - otherwise we don't care if it's configured or not
+			if isStream && requiresUserData {
+				isConfigured = !notConfiguredRegex.MatchString(c.Path())
+			}
 		}
 
 		// If the media name should be logged and it's not being put into the context,
 		// we can start a goroutine to determine the media name here
 		// and read it right before logging.
+		// But only do it if we're logging for a stream route and if user data requirements are met (if user data is required via the manifest and no user data is given we skip the meta check).
 		var mediaName string
 		var wg sync.WaitGroup
-		if logMediaName && !isMediaNameInContext && isStream {
+		if logMediaName && !isMediaNameInContext && isStream &&
+			(!requiresUserData || isConfigured) {
 			wg = sync.WaitGroup{}
 			wg.Add(1)
 

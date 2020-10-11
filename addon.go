@@ -221,7 +221,7 @@ func (a *Addon) Run(stoppingChan chan bool) {
 
 	app.Use(middleware.Recover())
 	if !a.opts.DisableRequestLogging {
-		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent, a.opts.LogMediaName, a.opts.PutMetaInContext, a.cinemetaClient))
+		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent, a.opts.LogMediaName, a.opts.PutMetaInContext, a.cinemetaClient, a.manifest.BehaviorHints.ConfigurationRequired))
 	}
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
 	if a.opts.PutMetaInContext {
