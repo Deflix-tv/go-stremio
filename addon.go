@@ -258,16 +258,25 @@ func (a *Addon) Run(stoppingChan chan bool) {
 
 	// In Fiber optional parameters don't work at the beginning of the URL, so we have to register two routes each
 	manifestHandler := createManifestHandler(a.manifest, logger, a.manifestCallback, a.userDataType, a.opts.UserDataIsBase64)
+	// We always register this route, because even if BehaviorHints.ConfigurationRequired is true, this endpoint is required for the addon to be listed in Stremio's community addons.
 	app.Get("/manifest.json", manifestHandler)
 	app.Get("/:userData/manifest.json", manifestHandler)
 	if a.catalogHandlers != nil {
 		catalogHandler := createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs, logger, a.userDataType, a.opts.UserDataIsBase64)
-		app.Get("/catalog/:type/:id.json", catalogHandler)
+		// Don't even register the route without user data if user data is *required*
+		if !a.manifest.BehaviorHints.ConfigurationRequired {
+			app.Get("/catalog/:type/:id.json", catalogHandler)
+		}
+		// We always register this route, because we don't know if the addon developer wants to use user data or not, as BehaviorHints.Configurable only indicates the configurability *via Stremio*
 		app.Get("/:userData/catalog/:type/:id.json", catalogHandler)
 	}
 	if a.streamHandlers != nil {
 		streamHandler := createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger, a.userDataType, a.opts.UserDataIsBase64)
-		app.Get("/stream/:type/:id.json", streamHandler)
+		// Don't even register the route without user data if user data is *required*
+		if !a.manifest.BehaviorHints.ConfigurationRequired {
+			app.Get("/stream/:type/:id.json", streamHandler)
+		}
+		// We always register this route, because we don't know if the addon developer wants to use user data or not, as BehaviorHints.Configurable only indicates the configurability *via Stremio*
 		app.Get("/:userData/stream/:type/:id.json", streamHandler)
 	}
 	if a.opts.ConfigureHTMLfs != nil {
