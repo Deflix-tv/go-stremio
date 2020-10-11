@@ -38,6 +38,16 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 	if manifest.BehaviorHints.ConfigurationRequired {
 		configuredManifest.BehaviorHints.ConfigurationRequired = false
 	}
+
+	manifestBody, err := json.Marshal(manifest)
+	if err != nil {
+		logger.Fatal("Couldn't marshal manifest", zap.Error(err))
+	}
+	configuredManifestBody, err := json.Marshal(configuredManifest)
+	if err != nil {
+		logger.Fatal("Couldn't marshal configured manifest", zap.Error(err))
+	}
+
 	return func(c *fiber.Ctx) {
 		logger.Debug("manifestHandler called")
 
@@ -70,22 +80,15 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 			}
 		}
 
-		var resBody []byte
-		var err error
 		if configured {
-			resBody, err = json.Marshal(configuredManifest)
+			logger.Debug("Responding", zap.ByteString("body", configuredManifestBody))
+			c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			c.SendBytes(configuredManifestBody)
 		} else {
-			resBody, err = json.Marshal(manifest)
+			logger.Debug("Responding", zap.ByteString("body", manifestBody))
+			c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			c.SendBytes(manifestBody)
 		}
-		if err != nil {
-			logger.Error("Couldn't marshal manifest", zap.Error(err))
-			c.Status(fiber.StatusInternalServerError)
-			return
-		}
-
-		logger.Debug("Responding", zap.ByteString("body", resBody))
-		c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-		c.SendBytes(resBody)
 	}
 }
 
