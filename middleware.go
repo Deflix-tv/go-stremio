@@ -87,7 +87,6 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 		var wg sync.WaitGroup
 		if logMediaName && !isMediaNameInContext && isStream &&
 			(!requiresUserData || isConfigured) {
-			wg = sync.WaitGroup{}
 			wg.Add(1)
 
 			go func() {
