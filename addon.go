@@ -226,8 +226,10 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
 	if a.opts.PutMetaInContext {
 		metaMw := createMetaMiddleware(a.cinemetaClient, logger)
-		// Meta middleware only works for stream requests
-		app.Use("/stream/:type/:id.json", metaMw)
+		// Meta middleware only works for stream requests and shouldn't be used for the enpoint without user data if user data is required in the manifest.
+		if !a.manifest.BehaviorHints.ConfigurationRequired {
+			app.Use("/stream/:type/:id.json", metaMw)
+		}
 		app.Use("/:userData/stream/:type/:id.json", metaMw)
 	}
 	// Custom middlewares
