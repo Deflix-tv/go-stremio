@@ -263,8 +263,12 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	app.Get("/:userData/manifest.json", manifestHandler)
 	if a.catalogHandlers != nil {
 		catalogHandler := createCatalogHandler(a.catalogHandlers, a.opts.CacheAgeCatalogs, a.opts.CachePublicCatalogs, a.opts.HandleEtagCatalogs, logger, a.userDataType, a.opts.UserDataIsBase64)
-		// Don't even register the route without user data if user data is *required*
-		if !a.manifest.BehaviorHints.ConfigurationRequired {
+		// If user data is required but not sent, let clients know they sent a bad request. That's better than responding with 404, leading to clients thinking it's a server-side error.
+		if a.manifest.BehaviorHints.ConfigurationRequired {
+			app.Get("/catalog/:type/:id.json", func(c *fiber.Ctx) {
+				c.SendStatus(fiber.StatusBadRequest)
+			})
+		} else {
 			app.Get("/catalog/:type/:id.json", catalogHandler)
 		}
 		// We always register this route, because we don't know if the addon developer wants to use user data or not, as BehaviorHints.Configurable only indicates the configurability *via Stremio*
@@ -272,8 +276,12 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	}
 	if a.streamHandlers != nil {
 		streamHandler := createStreamHandler(a.streamHandlers, a.opts.CacheAgeStreams, a.opts.CachePublicStreams, a.opts.HandleEtagStreams, logger, a.userDataType, a.opts.UserDataIsBase64)
-		// Don't even register the route without user data if user data is *required*
-		if !a.manifest.BehaviorHints.ConfigurationRequired {
+		// If user data is required but not sent, let clients know they sent a bad request. That's better than responding with 404, leading to clients thinking it's a server-side error.
+		if a.manifest.BehaviorHints.ConfigurationRequired {
+			app.Get("/stream/:type/:id.json", func(c *fiber.Ctx) {
+				c.SendStatus(fiber.StatusBadRequest)
+			})
+		} else {
 			app.Get("/stream/:type/:id.json", streamHandler)
 		}
 		// We always register this route, because we don't know if the addon developer wants to use user data or not, as BehaviorHints.Configurable only indicates the configurability *via Stremio*
