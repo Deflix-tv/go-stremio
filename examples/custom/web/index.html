@@ -85,7 +85,7 @@
         }
         // Encode to Base64, make URL-safe, remove padding (leading to Base64URL as described in RFC 4648).
         var encoded = btoa(JSON.stringify(userData)).replace(/\+/g, '-').replace(/\//g, '_').split('=')[0]
-        window.location.href = "stremio://localhost:8080/" + encoded + "/manifest.json";
+        window.location.href = "stremio://"+window.location.host+"/" + encoded + "/manifest.json";
       }
     }
   </script>
