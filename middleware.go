@@ -199,6 +199,7 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 		})
 		app.Use("/:userData/catalog/:type/:id.json", func(c *fiber.Ctx) {
 			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+				logger.Debug("Rejecting bad request due to missing type or ID")
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
@@ -212,10 +213,12 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 		app.Use("/:userData/stream/:type/:id.json", func(c *fiber.Ctx) {
 			id := c.Params("id", "")
 			if c.Params("type", "") == "" || id == "" {
+				logger.Debug("Rejecting bad request due to missing type or ID")
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
 			if !streamIDregex.MatchString(id) {
+				logger.Debug("Rejecting bad request due to stream ID not matching the given regex")
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
@@ -227,6 +230,7 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 		// Catalog
 		app.Use("/catalog/:type/:id.json", func(c *fiber.Ctx) {
 			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+				logger.Debug("Rejecting bad request due to missing type or ID")
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
@@ -235,6 +239,7 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 		})
 		app.Use("/:userData/catalog/:type/:id.json", func(c *fiber.Ctx) {
 			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+				logger.Debug("Rejecting bad request due to missing type or ID")
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
@@ -245,10 +250,12 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 		app.Use("/stream/:type/:id.json", func(c *fiber.Ctx) {
 			id := c.Params("id", "")
 			if c.Params("type", "") == "" || id == "" {
+				logger.Debug("Rejecting bad request due to missing type or ID")
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
 			if !streamIDregex.MatchString(id) {
+				logger.Debug("Rejecting bad request due to stream ID not matching the given regex")
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
@@ -258,10 +265,12 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 		app.Use("/:userData/stream/:type/:id.json", func(c *fiber.Ctx) {
 			id := c.Params("id", "")
 			if c.Params("type", "") == "" || id == "" {
+				logger.Debug("Rejecting bad request due to missing type or ID")
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
 			if !streamIDregex.MatchString(id) {
+				logger.Debug("Rejecting bad request due to stream ID not matching the given regex")
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
