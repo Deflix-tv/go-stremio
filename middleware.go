@@ -20,35 +20,6 @@ type customMiddleware struct {
 	mw   func(*fiber.Ctx)
 }
 
-func corsMiddleware() func(*fiber.Ctx) {
-	config := cors.Config{
-		// Headers as listed by the Stremio example addon.
-		//
-		// According to logs an actual stream request sends these headers though:
-		//   Header:map[
-		// 	  Accept:[*/*]
-		// 	  Accept-Encoding:[gzip, deflate, br]
-		// 	  Connection:[keep-alive]
-		// 	  Origin:[https://app.strem.io]
-		// 	  User-Agent:[Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.9.9 Chrome/56.0.2924.122 Safari/537.36 StremioShell/4.4.106]
-		// ]
-		AllowHeaders: []string{
-			"Accept",
-			"Accept-Language",
-			"Content-Type",
-			"Origin", // Not "safelisted" in the specification
-
-			// Non-default for gorilla/handlers CORS handling
-			"Accept-Encoding",
-			"Content-Language", // "Safelisted" in the specification
-			"X-Requested-With",
-		},
-		AllowMethods: []string{"GET"},
-		AllowOrigins: []string{"*"},
-	}
-	return cors.New(config)
-}
-
 func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaName bool, requiresUserData bool) func(*fiber.Ctx) {
 	// We always log status, duration, method, URL
 	zapFieldCount := 4
@@ -126,66 +97,33 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 	}
 }
 
-func createMetaMiddleware(cinemetaClient *cinemeta.Client, putMetaInHandlerContext, logMediaName bool, logger *zap.Logger) func(*fiber.Ctx) {
-	return func(c *fiber.Ctx) {
-		// If we should put the meta in the context for *handlers* we get the meta synchronously.
-		// Otherwise we only need it for logging and can get the meta asynchronously.
-		if putMetaInHandlerContext {
-			putMetaInContext(c, cinemetaClient, logger)
-			c.Next()
-		} else if logMediaName {
-			var wg sync.WaitGroup
-			wg.Add(1)
-			go func() {
-				putMetaInContext(c, cinemetaClient, logger)
-				wg.Done()
-			}()
-			c.Next()
-			// Wait so that the meta is in the context when returning to the logging middleware
-			wg.Wait()
-		} else {
-			c.Next()
-		}
-	}
-}
+func corsMiddleware() func(*fiber.Ctx) {
+	config := cors.Config{
+		// Headers as listed by the Stremio example addon.
+		//
+		// According to logs an actual stream request sends these headers though:
+		//   Header:map[
+		// 	  Accept:[*/*]
+		// 	  Accept-Encoding:[gzip, deflate, br]
+		// 	  Connection:[keep-alive]
+		// 	  Origin:[https://app.strem.io]
+		// 	  User-Agent:[Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.9.9 Chrome/56.0.2924.122 Safari/537.36 StremioShell/4.4.106]
+		// ]
+		AllowHeaders: []string{
+			"Accept",
+			"Accept-Language",
+			"Content-Type",
+			"Origin", // Not "safelisted" in the specification
 
-func putMetaInContext(c *fiber.Ctx, cinemetaClient *cinemeta.Client, logger *zap.Logger) {
-	var meta cinemeta.Meta
-	var err error
-	// type and id can never be empty, because that's been checked by a previous middleware
-	t := c.Params("type", "")
-	id := c.Params("id", "")
-	switch t {
-	case "movie":
-		meta, err = cinemetaClient.GetMovie(c.Context(), id)
-		if err != nil {
-			logger.Error("Couldn't get movie info from Cinemeta", zap.Error(err))
-			return
-		}
-	case "series":
-		splitID := strings.Split(id, ":")
-		if len(splitID) != 3 {
-			logger.Warn("No 3 elements after splitting TV show ID by \":\"", zap.String("id", id))
-			return
-		}
-		season, err := strconv.Atoi(splitID[1])
-		if err != nil {
-			logger.Warn("Can't parse season as int", zap.String("season", splitID[1]))
-			return
-		}
-		episode, err := strconv.Atoi(splitID[2])
-		if err != nil {
-			logger.Warn("Can't parse episode as int", zap.String("episode", splitID[2]))
-			return
-		}
-		meta, err = cinemetaClient.GetTVShow(c.Context(), splitID[0], season, episode)
-		if err != nil {
-			logger.Error("Couldn't get TV show info from Cinemeta", zap.Error(err))
-			return
-		}
+			// Non-default for gorilla/handlers CORS handling
+			"Accept-Encoding",
+			"Content-Language", // "Safelisted" in the specification
+			"X-Requested-With",
+		},
+		AllowMethods: []string{"GET"},
+		AllowOrigins: []string{"*"},
 	}
-	logger.Debug("Got meta from cinemata client", zap.String("meta", fmt.Sprintf("%+v", meta)))
-	c.Locals("meta", meta)
+	return cors.New(config)
 }
 
 func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDregexString string, logger *zap.Logger) {
@@ -279,4 +217,66 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 			c.Next()
 		})
 	}
+}
+
+func createMetaMiddleware(cinemetaClient *cinemeta.Client, putMetaInHandlerContext, logMediaName bool, logger *zap.Logger) func(*fiber.Ctx) {
+	return func(c *fiber.Ctx) {
+		// If we should put the meta in the context for *handlers* we get the meta synchronously.
+		// Otherwise we only need it for logging and can get the meta asynchronously.
+		if putMetaInHandlerContext {
+			putMetaInContext(c, cinemetaClient, logger)
+			c.Next()
+		} else if logMediaName {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				putMetaInContext(c, cinemetaClient, logger)
+				wg.Done()
+			}()
+			c.Next()
+			// Wait so that the meta is in the context when returning to the logging middleware
+			wg.Wait()
+		} else {
+			c.Next()
+		}
+	}
+}
+
+func putMetaInContext(c *fiber.Ctx, cinemetaClient *cinemeta.Client, logger *zap.Logger) {
+	var meta cinemeta.Meta
+	var err error
+	// type and id can never be empty, because that's been checked by a previous middleware
+	t := c.Params("type", "")
+	id := c.Params("id", "")
+	switch t {
+	case "movie":
+		meta, err = cinemetaClient.GetMovie(c.Context(), id)
+		if err != nil {
+			logger.Error("Couldn't get movie info from Cinemeta", zap.Error(err))
+			return
+		}
+	case "series":
+		splitID := strings.Split(id, ":")
+		if len(splitID) != 3 {
+			logger.Warn("No 3 elements after splitting TV show ID by \":\"", zap.String("id", id))
+			return
+		}
+		season, err := strconv.Atoi(splitID[1])
+		if err != nil {
+			logger.Warn("Can't parse season as int", zap.String("season", splitID[1]))
+			return
+		}
+		episode, err := strconv.Atoi(splitID[2])
+		if err != nil {
+			logger.Warn("Can't parse episode as int", zap.String("episode", splitID[2]))
+			return
+		}
+		meta, err = cinemetaClient.GetTVShow(c.Context(), splitID[0], season, episode)
+		if err != nil {
+			logger.Error("Couldn't get TV show info from Cinemeta", zap.Error(err))
+			return
+		}
+	}
+	logger.Debug("Got meta from cinemata client", zap.String("meta", fmt.Sprintf("%+v", meta)))
+	c.Locals("meta", meta)
 }
