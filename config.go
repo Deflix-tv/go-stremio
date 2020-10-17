@@ -96,6 +96,13 @@ type Options struct {
 	// No configure endpoint will be created if this is nil, so you can add a custom one.
 	// Default nil.
 	ConfigureHTMLfs http.FileSystem
+	// Regex for accepted stream IDs.
+	// Even when setting the "tt" prefix in the manifest to only allow IMDb IDs, some clients still send stream requests for completely different IDs,
+	// potentially leading to your handlers being triggered and executing some logic before than failing due to the bad ID.
+	// With this regex you can make sure your handlers are only called for valid IDs. An empty value will lead to your handlers being called for any ID.
+	// IMDb example: "tt\\d{7,8}" or `tt\d{7,8}`
+	// Default "".
+	StreamIDregex string
 }
 
 // DefaultOptions is an Options object with default values.

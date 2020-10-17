@@ -225,7 +225,7 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	}
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
 	// Filter some requests (like for requests without user data when the addon requires configuration, or for missing type or id URL parameters) and put some request info in the context
-	addRouteMatcherMiddleware(app, a.manifest.BehaviorHints.ConfigurationRequired, logger)
+	addRouteMatcherMiddleware(app, a.manifest.BehaviorHints.ConfigurationRequired, a.opts.StreamIDregex, logger)
 	metaMw := createMetaMiddleware(a.cinemetaClient, a.opts.PutMetaInContext, a.opts.LogMediaName, logger)
 	// Meta middleware only works for stream requests.
 	if !a.manifest.BehaviorHints.ConfigurationRequired {

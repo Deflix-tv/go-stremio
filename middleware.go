@@ -2,6 +2,7 @@ package stremio
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -187,7 +188,8 @@ func putMetaInContext(c *fiber.Ctx, cinemetaClient *cinemeta.Client, logger *zap
 	c.Locals("meta", meta)
 }
 
-func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, logger *zap.Logger) {
+func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDregexString string, logger *zap.Logger) {
+	streamIDregex := regexp.MustCompile(streamIDregexString)
 	if requiresUserData {
 		// Catalog
 		app.Use("/catalog/:type/:id.json", func(c *fiber.Ctx) {
@@ -208,7 +210,12 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, logger *za
 			c.SendStatus(fiber.StatusBadRequest)
 		})
 		app.Use("/:userData/stream/:type/:id.json", func(c *fiber.Ctx) {
-			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+			id := c.Params("id", "")
+			if c.Params("type", "") == "" || id == "" {
+				c.SendStatus(fiber.StatusBadRequest)
+				return
+			}
+			if !streamIDregex.MatchString(id) {
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
@@ -236,7 +243,12 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, logger *za
 		})
 		// Stream
 		app.Use("/stream/:type/:id.json", func(c *fiber.Ctx) {
-			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+			id := c.Params("id", "")
+			if c.Params("type", "") == "" || id == "" {
+				c.SendStatus(fiber.StatusBadRequest)
+				return
+			}
+			if !streamIDregex.MatchString(id) {
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
@@ -244,7 +256,12 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, logger *za
 			c.Next()
 		})
 		app.Use("/:userData/stream/:type/:id.json", func(c *fiber.Ctx) {
-			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+			id := c.Params("id", "")
+			if c.Params("type", "") == "" || id == "" {
+				c.SendStatus(fiber.StatusBadRequest)
+				return
+			}
+			if !streamIDregex.MatchString(id) {
 				c.SendStatus(fiber.StatusBadRequest)
 				return
 			}
