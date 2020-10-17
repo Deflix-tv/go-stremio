@@ -46,6 +46,7 @@ It provides the most important parts of the Node.js SDK and depending on the req
   - [x] With optional URL-safe Base64 decoding and JSON unmarshalling
 - [x] Addon installation callback (manifest endpoint)
 - [x] Cinemeta client in the independent `cinemeta` package
+- [x] Optional stream ID filtering via regex
 
 Current *non*-features, as they're usually part of a reverse proxy deployed in front of the service:
 
