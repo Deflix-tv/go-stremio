@@ -13,7 +13,7 @@ type Manifest struct {
 	//Resources     []string       `json:"resources,omitempty"`
 	ResourceItems []ResourceItem `json:"resources,omitempty"`
 
-	Types    []string      `json:"types"`
+	Types    []string      `json:"types"` // Stremio supports "movie", "series", "channel" and "tv"
 	Catalogs []CatalogItem `json:"catalogs"`
 
 	// Optional
@@ -26,7 +26,7 @@ type Manifest struct {
 
 type ResourceItem struct {
 	Name  string   `json:"name"`
-	Types []string `json:"types"`
+	Types []string `json:"types"` // Stremio supports "movie", "series", "channel" and "tv"
 
 	// Optional
 	IDprefixes []string `json:"idPrefixes,omitempty"`

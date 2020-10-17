@@ -2,7 +2,6 @@ package stremio
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,7 +48,7 @@ func corsMiddleware() func(*fiber.Ctx) {
 	return cors.New(config)
 }
 
-func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaName, isMediaNameInContext bool, cinemetaClient *cinemeta.Client, requiresUserData bool) func(*fiber.Ctx) {
+func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaName bool, requiresUserData bool) func(*fiber.Ctx) {
 	// We always log status, duration, method, URL
 	zapFieldCount := 4
 	if logIPs {
@@ -59,104 +58,23 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 	if logUserAgent {
 		zapFieldCount++
 	}
-	// For the media name it depends on if it's a stream request or not
-
-	base64URLregex := "[A-Za-z0-9-_]+={0,2}"
-	streamURLregex := regexp.MustCompile(`^/(` + base64URLregex + `/)?stream/(movie|series)/.+\.json(\?.*)?$`)
-	notConfiguredRegex := regexp.MustCompile(`^/stream/(movie|series)/.*$`)
 
 	return func(c *fiber.Ctx) {
 		start := time.Now()
-
-		// Logging media name only works for stream requests
-		var isStream bool
-		var isConfigured bool
-		if logMediaName {
-			isStream = streamURLregex.MatchString(c.Path())
-			// Only check if the addon *requires* user data - otherwise we don't care if it's configured or not
-			if isStream && requiresUserData {
-				isConfigured = !notConfiguredRegex.MatchString(c.Path())
-			}
-		}
-
-		// If the media name should be logged and it's not being put into the context,
-		// we can start a goroutine to determine the media name here
-		// and read it right before logging.
-		// But only do it if we're logging for a stream route and if user data requirements are met (if user data is required via the manifest and no user data is given we skip the meta check).
-		var mediaName string
-		var wg sync.WaitGroup
-		if logMediaName && !isMediaNameInContext && isStream &&
-			(!requiresUserData || isConfigured) {
-			wg.Add(1)
-
-			go func() {
-				t := c.Params("type", "")
-				id := c.Params("id", "")
-				if t == "" || id == "" {
-					logger.Warn("Can't determine media type and/or IMDb ID from path parameters")
-					wg.Done()
-					return
-				}
-
-				var meta cinemeta.Meta
-				var err error
-				switch t {
-				case "movie":
-					meta, err = cinemetaClient.GetMovie(c.Context(), id)
-					if err != nil {
-						logger.Error("Couldn't get movie info from Cinemeta", zap.Error(err))
-						wg.Done()
-						return
-					}
-				case "series":
-					splitID := strings.Split(id, ":")
-					if len(splitID) != 3 {
-						logger.Warn("No 3 elements after splitting TV show ID by \":\"", zap.String("id", id))
-						wg.Done()
-						return
-					}
-					season, err := strconv.Atoi(splitID[1])
-					if err != nil {
-						logger.Warn("Can't parse season as int", zap.String("season", splitID[1]))
-						wg.Done()
-						return
-					}
-					episode, err := strconv.Atoi(splitID[2])
-					if err != nil {
-						logger.Warn("Can't parse episode as int", zap.String("episode", splitID[2]))
-						wg.Done()
-						return
-					}
-					meta, err = cinemetaClient.GetTVShow(c.Context(), splitID[0], season, episode)
-					if err != nil {
-						logger.Error("Couldn't get TV show info from Cinemeta", zap.Error(err))
-						wg.Done()
-						return
-					}
-				}
-				logger.Debug("Got meta from cinemata client", zap.String("meta", fmt.Sprintf("%+v", meta)))
-
-				mediaName = fmt.Sprintf("%v (%v)", meta.Name, meta.ReleaseInfo)
-				wg.Done()
-			}()
-		}
 
 		// First call the other handlers in the chain!
 		c.Next()
 
 		// Then log
 
-		// If we should log the media name, we need to either wait for the previously started goroutine
-		// or read it from the context.
-		// We can wait for the wg in any case, as it immediately returns in case no goroutine was started.
-		wg.Wait()
-		if logMediaName && isMediaNameInContext && isStream {
-			if meta, err := cinemeta.GetMetaFromContext(c.Context()); err != nil {
-				if err == cinemeta.ErrNoMeta {
-					logger.Warn("Meta not found in context")
-				} else {
-					logger.Error("Couldn't get meta from context", zap.Error(err))
-				}
+		isStream := c.Locals("isStream") != nil
+
+		// Get meta from context - the meta middleware put it there.
+		// We ignore ErrNoMeta here, because actual issues are logged by the meta middleware already, and here we'd have to check for things like "is config required but not set", "is the ID bad and the ID matcher was used" which are all valid cases to not have meta in the context.
+		var mediaName string
+		if logMediaName && isStream {
+			if meta, err := cinemeta.GetMetaFromContext(c.Context()); err != nil && err != cinemeta.ErrNoMeta {
+				logger.Error("Couldn't get meta from context", zap.Error(err))
 			} else {
 				mediaName = fmt.Sprintf("%v (%v)", meta.Name, meta.ReleaseInfo)
 			}
@@ -207,55 +125,132 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 	}
 }
 
-func createMetaMiddleware(cinemetaClient *cinemeta.Client, logger *zap.Logger) func(*fiber.Ctx) {
+func createMetaMiddleware(cinemetaClient *cinemeta.Client, putMetaInHandlerContext, logMediaName bool, logger *zap.Logger) func(*fiber.Ctx) {
 	return func(c *fiber.Ctx) {
-		t := c.Params("type", "")
-		id := c.Params("id", "")
-		if t == "" || id == "" {
-			logger.Warn("Can't determine media type and/or IMDb ID from path parameters")
+		// If we should put the meta in the context for *handlers* we get the meta synchronously.
+		// Otherwise we only need it for logging and can get the meta asynchronously.
+		if putMetaInHandlerContext {
+			putMetaInContext(c, cinemetaClient, logger)
 			c.Next()
+		} else if logMediaName {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				putMetaInContext(c, cinemetaClient, logger)
+				wg.Done()
+			}()
+			c.Next()
+			// Wait so that the meta is in the context when returning to the logging middleware
+			wg.Wait()
+		} else {
+			c.Next()
+		}
+	}
+}
+
+func putMetaInContext(c *fiber.Ctx, cinemetaClient *cinemeta.Client, logger *zap.Logger) {
+	var meta cinemeta.Meta
+	var err error
+	// type and id can never be empty, because that's been checked by a previous middleware
+	t := c.Params("type", "")
+	id := c.Params("id", "")
+	switch t {
+	case "movie":
+		meta, err = cinemetaClient.GetMovie(c.Context(), id)
+		if err != nil {
+			logger.Error("Couldn't get movie info from Cinemeta", zap.Error(err))
 			return
 		}
-
-		var meta cinemeta.Meta
-		var err error
-		switch t {
-		case "movie":
-			meta, err = cinemetaClient.GetMovie(c.Context(), id)
-			if err != nil {
-				logger.Error("Couldn't get movie info from Cinemeta", zap.Error(err))
-				c.Next()
-				return
-			}
-		case "series":
-			splitID := strings.Split(id, ":")
-			if len(splitID) != 3 {
-				logger.Warn("No 3 elements after splitting TV show ID by \":\"", zap.String("id", id))
-				c.Next()
-				return
-			}
-			season, err := strconv.Atoi(splitID[1])
-			if err != nil {
-				logger.Warn("Can't parse season as int", zap.String("season", splitID[1]))
-				c.Next()
-				return
-			}
-			episode, err := strconv.Atoi(splitID[2])
-			if err != nil {
-				logger.Warn("Can't parse episode as int", zap.String("episode", splitID[2]))
-				c.Next()
-				return
-			}
-			meta, err = cinemetaClient.GetTVShow(c.Context(), splitID[0], season, episode)
-			if err != nil {
-				logger.Error("Couldn't get TV show info from Cinemeta", zap.Error(err))
-				c.Next()
-				return
-			}
+	case "series":
+		splitID := strings.Split(id, ":")
+		if len(splitID) != 3 {
+			logger.Warn("No 3 elements after splitting TV show ID by \":\"", zap.String("id", id))
+			return
 		}
-		logger.Debug("Got meta from cinemata client", zap.String("meta", fmt.Sprintf("%+v", meta)))
-		c.Locals("meta", meta)
+		season, err := strconv.Atoi(splitID[1])
+		if err != nil {
+			logger.Warn("Can't parse season as int", zap.String("season", splitID[1]))
+			return
+		}
+		episode, err := strconv.Atoi(splitID[2])
+		if err != nil {
+			logger.Warn("Can't parse episode as int", zap.String("episode", splitID[2]))
+			return
+		}
+		meta, err = cinemetaClient.GetTVShow(c.Context(), splitID[0], season, episode)
+		if err != nil {
+			logger.Error("Couldn't get TV show info from Cinemeta", zap.Error(err))
+			return
+		}
+	}
+	logger.Debug("Got meta from cinemata client", zap.String("meta", fmt.Sprintf("%+v", meta)))
+	c.Locals("meta", meta)
+}
 
-		c.Next()
+func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, logger *zap.Logger) {
+	if requiresUserData {
+		// Catalog
+		app.Use("/catalog/:type/:id.json", func(c *fiber.Ctx) {
+			// If user data is required but not sent, let clients know they sent a bad request.
+			// That's better than responding with 404, leading to clients thinking it's a server-side error.
+			c.SendStatus(fiber.StatusBadRequest)
+		})
+		app.Use("/:userData/catalog/:type/:id.json", func(c *fiber.Ctx) {
+			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+				c.SendStatus(fiber.StatusBadRequest)
+				return
+			}
+			c.Locals("isConfigured", true)
+			c.Next()
+		})
+		// Stream
+		app.Use("/stream/:type/:id.json", func(c *fiber.Ctx) {
+			c.SendStatus(fiber.StatusBadRequest)
+		})
+		app.Use("/:userData/stream/:type/:id.json", func(c *fiber.Ctx) {
+			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+				c.SendStatus(fiber.StatusBadRequest)
+				return
+			}
+			c.Locals("isConfigured", true)
+			c.Locals("isStream", true)
+			c.Next()
+		})
+	} else {
+		// Catalog
+		app.Use("/catalog/:type/:id.json", func(c *fiber.Ctx) {
+			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+				c.SendStatus(fiber.StatusBadRequest)
+				return
+			}
+			c.Locals("isConfigured", true)
+			c.Next()
+		})
+		app.Use("/:userData/catalog/:type/:id.json", func(c *fiber.Ctx) {
+			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+				c.SendStatus(fiber.StatusBadRequest)
+				return
+			}
+			c.Locals("isConfigured", true)
+			c.Next()
+		})
+		// Stream
+		app.Use("/stream/:type/:id.json", func(c *fiber.Ctx) {
+			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+				c.SendStatus(fiber.StatusBadRequest)
+				return
+			}
+			c.Locals("isStream", true)
+			c.Next()
+		})
+		app.Use("/:userData/stream/:type/:id.json", func(c *fiber.Ctx) {
+			if c.Params("type", "") == "" || c.Params("id", "") == "" {
+				c.SendStatus(fiber.StatusBadRequest)
+				return
+			}
+			c.Locals("isConfigured", true)
+			c.Locals("isStream", true)
+			c.Next()
+		})
 	}
 }
