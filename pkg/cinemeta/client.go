@@ -54,6 +54,9 @@ func NewClient(opts ClientOptions, cache Cache, logger *zap.Logger) *Client {
 	if opts.Timeout == 0 {
 		opts.Timeout = DefaultClientOpts.Timeout
 	}
+	if opts.TTL == 0 {
+		opts.TTL = DefaultClientOpts.TTL
+	}
 
 	return &Client{
 		baseURL: opts.BaseURL,
