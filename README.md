@@ -119,48 +119,60 @@ Some reasons why you might want to consider developing an addon in Go with this 
 
 Criterium|Node.js addon|Go addon
 ---------|-------------|--------
-Direct SDK dependencies|9|5
-Transitive SDK dependencies|85|8
-Size of a runnable addon|27 MB¹|15 MB
-Number of artifacts to deploy|depends²|1
+Direct SDK dependencies|9|4
+Transitive SDK dependencies|90¹|35²
+Size of a runnable addon|27 MB³|11-15 MB⁴
+Number of artifacts to deploy|depends⁵|1
 Runtime dependencies|Node.js|-
 Concurrency|Single-threaded|Multi-threaded
 
-¹) `du -h --max-depth=0 node_modules`  
-²) All your JavaScript files and the `package.json` if you can install the depencencies with `npm` on the server, otherwise (like in a Docker container) you also need all the `node_modules`, which are hundreds to thousands of files.  
+¹) `ls -l node_modules | wc -l` - 1  
+²) `go list -m all | wc -l` - 1 - (number of direct dependencies)  
+³) `du -h --max-depth=0 node_modules`  
+⁴) The smaller binary is easily achieved by compiling with `-ldflags "-s -w"`  
+⁵) All your JavaScript files and the `package.json` if you can install the depencencies with `npm` on the server, otherwise (like in a Docker container) you also need all the `node_modules`, which are hundreds to thousands of files.  
 
 Looking at the performance it depends a lot on what your addon does. Due to the single-threaded nature of Node.js, the more CPU-bound tasks your addon does, the bigger the performance difference will be (in favor of Go). Here we compare the simplest possible addon to be able to compare just the SDKs and not any additional overhead (like DB access):
 
+On a [DigitalOcean](https://www.digitalocean.com/) "Droplet" of type "Basic" (shared CPU) with 2 cores and 2 GB RAM, which costs $15/month:
+
 Criterium|Node.js addon|Go addon
 ---------|-------------|--------
-Startup time to 1st request¹|150-230ms|5-20ms
-Max rps² @ 1000 connections|Local³: 6,000<br>Remote⁴: 3,000|Local³: 59,000<br>Remote⁴: 58,000
-Memory usage @ 1000 connections|Idle: 35 MB<br>Load⁵: 70 MB|Idle: 10 MB<br>Load⁵: 45 MB
+Startup time to 1st request¹|400ms-4s|20-30ms
+Max rps² @ 1000 connections|Local³: 1,000<br>Remote⁴: 1,000|Local³: 17,000<br>Remote⁴: 29,000
+Memory usage @ 1000 connections|Idle: 42 MB<br>Load⁵: 73 MB|Idle: 11 MB<br>Load⁵: 45 MB
+
+On a [DigitalOcean](https://www.digitalocean.com/) "Droplet" of type "CPU-Optimized" (dedicated CPU) with 2 cores and 4 GB RAM, which costs $40/month:
+
+Criterium|Node.js addon|Go addon
+---------|-------------|--------
+Startup time to 1st request¹|200-400ms|9-20ms
+Max rps² @ 1000 connections|Local³: 5,000<br>Remote⁴: 1,000|Local³: 39,000<br>Remote⁴: 39,000
+Memory usage @ 1000 connections|Idle: 42 MB<br>Load⁵: 90 MB|Idle: 11 MB<br>Load⁵: 47 MB
 
 ¹) Measured using [ttfok](https://github.com/doingodswork/ttfok) and the code in [benchmark](benchmark). This metric is relevant in case you want to use a "serverless functions" service (like [AWS Lambda](https://aws.amazon.com/lambda/) or [Vercel](https://vercel.com/) (former ZEIT Now)) that doesn't keep your service running between requests.  
 ²) Max number of requests per second where the p99 latency is still < 100ms  
 ³) The load testing tool ran on a different server, but in the same datacenter and the requests were sent within a private network  
 ⁴) The load testing tool ran on a different server *in a different datacenter of another cloud provider in another city* for more real world-like circumstances  
-⁵) At a request rate *half* of what we measured as maximum  
+⁵) Resident size (`RES` in `htop`) at a request rate *half* of what we measured as maximum  
 
 The load tests were run under the following circumstances:
 
 - We used the addon code, load testing tool and setup described in [benchmark](benchmark)
-- We ran the service on a [DigitalOcean](https://www.digitalocean.com/) "Droplet" with 2 cores and 2 GB RAM, which costs $15/month
-- The load tests ran for 60s, with previous warmup  
-- Virtualized servers of cloud providers vary in performance throughout the week and day, even when using the exact same machines, because the CPU cores of the virtualization host are shared between multiple VPS. We conducted the Node.js and Go service tests at the same time so their performance difference doesn't come from the performance variation due to running at different times.  
-- The client server used to run the load testing tool was high-powered (4-8 *dedicated* cores, 8-32 GB RAM)
+- We ran the Node.js and Go service on the same Droplet and conducted the benchmark on the same day, several minutes apart, so that the resource sharing of the VPS is about the same. Note that when you try to reproduce the benchmark results, a different VPS could be subject to more or less resource sharing with other VPS on the virtualization host. Other times of day can also lead to differing benchmark results (e.g. low traffic on a Monday morning, high traffic on a Saturday evening).
+- The load tests ran for 60s (to have a somewhat meaningful p99 value), with previous warmup
+- The client servers (both the one in the same DC and the one in a different DC of another cloud provider in another city) used to run the load testing tool were high-powered (8 *dedicated* cores, 32 GB RAM)
 
 Additional observations:
 
-- The Go service's response times were generally lower across all request rates  
-- The Go service's response times had a much lower deviation, i.e. they were more stable. With less than 60s of time for the load test the Node.js service fared even worse, because outliers lead to a higher p99 latency.  
-- We also tested on a lower-powered server by a cheap cloud provider (also 2 core, 2 GB RAM, but the CPU was generally worse). In this case the difference between the Node.js and the Go service was even higher. The Go service is perfectly fitted for scaling out with multiple cheap servers.  
-- We also tested with different amounts of connections. With more connections the difference between the Node.js and the Go service was also higher. In a production deployment you want to be able to serve as many users as possible, so this goes in favor of the Go service as well.  
+- The Go service's response times were generally lower across all request rates
+- The Go service's response times had a much lower deviation, i.e. they were more stable. With less than 60s of time for the load test the Node.js service fared even worse, because outliers lead to a higher p99 latency.
+- We also tested on a lower-powered server by a cheap cloud provider (also 2 core, 2 GB RAM, but the CPU was generally worse). In this case the difference between the Node.js and the Go service was even higher. The Go service is perfectly fitted for scaling out with multiple cheap servers.
+- We also tested with different amounts of connections. With more connections the difference between the Node.js and the Go service was also higher. In a production deployment you want to be able to serve as many users as possible, so this goes in favor of the Go service as well.
 
 > Note:
 >
-> - This Go SDK is at its very beginning. Some features will be added in the future that might decrease its performance, while others will increase it.  
+> - This Go SDK is still young. Some features will be added in the future that might decrease its performance, while others will increase it.  
 > - The Node.js addon was run as a single instance. You can do more complex deployments with a load balancer like [HAProxy](https://www.haproxy.org/) and multiple instances of the same Node.js service on a single machine to take advantage of multiple CPU cores. But then you should also activate preforking in the Go addon for using several OS processes in parallel, which we didn't do.  
 
 ## Related projects
