@@ -7,7 +7,7 @@ The code in `addon.js` is from the main README from the official Stremio addon S
 On a fresh Ubuntu 20.04 machine run it with:
 
 ```bash
-# Install Node.js 12, which is the latest LTS release as of writing this
+# Install Node.js 12, which is the latest LTS release as of writing this.
 curl -sL https://deb.nodesource.com/setup_12.x | bash -
 apt install -y nodejs
 
@@ -23,9 +23,10 @@ On a fresh Ubuntu 20.04 machine run it with:
 
 ```bash
 # Install Go 1.15, which is the latest version as of writing this
-curl -sL -o go.tar.gz https://dl.google.com/go/go1.15.linux-amd64.tar.gz
+curl -sL -o go.tar.gz https://golang.org/dl/go1.15.3.linux-amd64.tar.gz
 tar -C /usr/local -xzf go.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
 . ~/.bashrc
 
 apt install -y git
@@ -93,12 +94,13 @@ apt install -y nodejs
 npm install stremio-addon-sdk
 
 # Set up Go
-curl -sL -o go.tar.gz https://dl.google.com/go/go1.15.linux-amd64.tar.gz
+curl -sL -o go.tar.gz https://golang.org/dl/go1.15.3.linux-amd64.tar.gz
 tar -C /usr/local -xzf go.tar.gz
-echo 'export PATH="/usr/local/go/bin:~/go/bin:$PATH"' >> ~/.bashrc
-set -ux
-. ~/.bashrc
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
 set +ux
+. ~/.bashrc
+set -ux
 go build -v
 
 # Set up wrk2

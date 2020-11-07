@@ -14,24 +14,24 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/gofiber/fiber"
+	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
 
 type customEndpoint struct {
 	method  string
 	path    string
-	handler func(*fiber.Ctx)
+	handler fiber.Handler
 }
 
-func createHealthHandler(logger *zap.Logger) func(*fiber.Ctx) {
-	return func(c *fiber.Ctx) {
+func createHealthHandler(logger *zap.Logger) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		logger.Debug("healthHandler called")
-		c.SendString("OK")
+		return c.SendString("OK")
 	}
 }
 
-func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallback ManifestCallback, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
+func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallback ManifestCallback, userDataType reflect.Type, userDataIsBase64 bool) fiber.Handler {
 	// When there's user data we want Stremio to show the "Install" button, which it only does when "configurationRequired" is false.
 	// To not change the boolean value of the manifest object on the fly and thus mess with a single object across concurrent goroutines, we copy it and return two different objects.
 	configuredManifest := manifest
@@ -48,7 +48,7 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 		logger.Fatal("Couldn't marshal configured manifest", zap.Error(err))
 	}
 
-	return func(c *fiber.Ctx) {
+	return func(c *fiber.Ctx) error {
 		logger.Debug("manifestHandler called")
 
 		// First call the callback so the SDK user can prevent further processing
@@ -68,31 +68,29 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 			} else {
 				var err error
 				if userData, err = decodeUserData(userDataString, userDataType, logger, userDataIsBase64); err != nil {
-					c.Status(fiber.StatusBadRequest)
-					return
+					return c.SendStatus(fiber.StatusBadRequest)
 				}
 			}
 		}
 		if manifestCallback != nil {
 			if status := manifestCallback(c.Context(), userData); status >= 400 {
-				c.Status(status)
-				return
+				return c.SendStatus(status)
 			}
 		}
 
 		if configured {
 			logger.Debug("Responding", zap.ByteString("body", configuredManifestBody))
 			c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-			c.SendBytes(configuredManifestBody)
+			return c.Send(configuredManifestBody)
 		} else {
 			logger.Debug("Responding", zap.ByteString("body", manifestBody))
 			c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-			c.SendBytes(manifestBody)
+			return c.Send(manifestBody)
 		}
 	}
 }
 
-func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
+func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) fiber.Handler {
 	handlers := make(map[string]handler, len(catalogHandlers))
 	for k, v := range catalogHandlers {
 		handlers[k] = func(ctx context.Context, id string, userData interface{}) (interface{}, error) {
@@ -102,7 +100,7 @@ func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge ti
 	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic, handleEtag, logger, userDataType, userDataIsBase64)
 }
 
-func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
+func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) fiber.Handler {
 	handlers := make(map[string]handler, len(streamHandlers))
 	for k, v := range streamHandlers {
 		handlers[k] = func(ctx context.Context, id string, userData interface{}) (interface{}, error) {
@@ -115,7 +113,7 @@ func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.
 // Common handler (same signature as both catalog and stream handler)
 type handler func(ctx context.Context, id string, userData interface{}) (interface{}, error)
 
-func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) func(*fiber.Ctx) {
+func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey []byte, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) fiber.Handler {
 	handlerName = handlerName + "Handler"
 	handlerLogMsg := handlerName + " called"
 
@@ -132,7 +130,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 
 	logger = logger.With(zap.String("handler", handlerName))
 
-	return func(c *fiber.Ctx) {
+	return func(c *fiber.Ctx) error {
 		logger.Debug(handlerLogMsg)
 
 		requestedType := c.Params("type")
@@ -144,8 +142,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 		handler, ok := handlers[requestedType]
 		if !ok {
 			logger.Warn("Got request for unhandled type; returning 404")
-			c.Status(http.StatusNotFound)
-			return
+			return c.SendStatus(http.StatusNotFound)
 		}
 
 		// Decode user data
@@ -158,8 +155,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 		} else {
 			var err error
 			if userData, err = decodeUserData(userDataString, userDataType, logger, userDataIsBase64); err != nil {
-				c.Status(fiber.StatusBadRequest)
-				return
+				return c.SendStatus(fiber.StatusBadRequest)
 			}
 		}
 
@@ -168,19 +164,17 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			switch err {
 			case NotFound:
 				logger.Warn("Got request for unhandled media ID; returning 404")
-				c.Status(http.StatusNotFound)
+				return c.SendStatus(http.StatusNotFound)
 			default:
 				logger.Error("Addon returned error", zap.Error(err), zapLogType, zapLogID)
-				c.Status(http.StatusInternalServerError)
+				return c.SendStatus(http.StatusInternalServerError)
 			}
-			return
 		}
 
 		resBody, err := json.Marshal(res)
 		if err != nil {
 			logger.Error("Couldn't marshal response", zap.Error(err), zapLogType, zapLogID)
-			c.Status(http.StatusInternalServerError)
-			return
+			return c.SendStatus(http.StatusInternalServerError)
 		}
 
 		// Handle ETag
@@ -202,8 +196,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			if !modified {
 				c.Set(fiber.HeaderCacheControl, cacheHeaderVal) // Required according to https://tools.ietf.org/html/rfc7232#section-4.1
 				c.Set(fiber.HeaderETag, eTag)                   // We set it to make sure a client doesn't overwrite its cached ETag with an empty string or so.
-				c.Status(http.StatusNotModified)
-				return
+				return c.SendStatus(http.StatusNotModified)
 			}
 		}
 
@@ -222,17 +215,17 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 				c.Set(fiber.HeaderETag, eTag)
 			}
 		}
-		c.SendBytes(resBody)
+		return c.Send(resBody)
 	}
 }
 
-func createRootHandler(redirectURL string, logger *zap.Logger) func(*fiber.Ctx) {
-	return func(c *fiber.Ctx) {
+func createRootHandler(redirectURL string, logger *zap.Logger) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		logger.Debug("rootHandler called")
 
 		logger.Debug("Responding with redirect", zap.String("redirectURL", redirectURL))
 		c.Set(fiber.HeaderLocation, redirectURL)
-		c.Status(http.StatusMovedPermanently)
+		return c.SendStatus(http.StatusMovedPermanently)
 	}
 }
 
