@@ -152,7 +152,7 @@ Memory usage @ 1000 connections|Idle: 42 MB<br>Load⁵: 90 MB|Idle: 11 MB<br>Loa
 
 ¹) Measured using [ttfok](https://github.com/doingodswork/ttfok) and the code in [benchmark](benchmark). This metric is relevant in case you want to use a "serverless functions" service (like [AWS Lambda](https://aws.amazon.com/lambda/) or [Vercel](https://vercel.com/) (former ZEIT Now)) that doesn't keep your service running between requests.  
 ²) Max number of requests per second where the p99 latency is still < 100ms  
-³) The load testing tool ran on a different server, but in the same datacenter and the requests were sent within a private network  
+³) The load testing tool ran on a different server, but in the same datacenter and the requests were sent within a private network. Note that DigitalOcean seems to have performance issues with their local "VPC Network" (which didn't affect the Node.js service as it maxed out the CPU, but the Go service maxed out the network before the CPU).  
 ⁴) The load testing tool ran on a different server *in a different datacenter of another cloud provider in another city* for more real world-like circumstances  
 ⁵) Resident size (`RES` in `htop`) at a request rate *half* of what we measured as maximum  
 
