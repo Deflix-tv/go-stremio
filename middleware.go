@@ -49,7 +49,7 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 		if logMediaName && isStream {
 			if meta, err := cinemeta.GetMetaFromContext(c.Context()); err != nil && err != cinemeta.ErrNoMeta {
 				logger.Error("Couldn't get meta from context", zap.Error(err))
-			} else {
+			} else if err != cinemeta.ErrNoMeta {
 				mediaName = fmt.Sprintf("%v (%v)", meta.Name, meta.ReleaseInfo)
 			}
 		}
