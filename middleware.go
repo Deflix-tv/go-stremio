@@ -121,7 +121,7 @@ func corsMiddleware() fiber.Handler {
 			", Accept-Encoding" +
 			", Content-Language" + // "Safelisted" in the specification
 			", X-Requested-With",
-		AllowMethods: "GET",
+		AllowMethods: "GET,HEAD",
 		AllowOrigins: "*",
 	}
 	return cors.New(config)
