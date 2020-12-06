@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 	"go.uber.org/zap"
 )
 
@@ -80,14 +79,14 @@ type Options struct {
 	// Only works for stream requests.
 	// Default false.
 	LogMediaName bool
-	// Cinemeta client for fetching movie and TV show info from Stremio's Cinemeta remote addon.
+	// Meta client for fetching movie and TV show info.
 	// Only relevant when using PutMetaInContext or LogMediaName.
 	// You can set it if you have already created one to share its in-memory cache for example,
-	// or leave it empty to let go-stremio create a one.
-	CinemetaClient *cinemeta.Client
+	// or leave it empty to let go-stremio create a client that fetches metadata from Stremio's Cinemeta remote addon.
+	MetaClient MetaFetcher
 	// Timeout for requests to Cinemeta.
 	// Only relevant when using PutMetaInContext or LogMediaName.
-	// Only required when not setting a Cinemeta client in the options already.
+	// Only required when not setting a MetaClient in the options already.
 	// Note that each response is cached for 30 days, so waiting a bit once per movie / TV show per 30 days is acceptable.
 	// Default 2 seconds.
 	CinemetaTimeout time.Duration

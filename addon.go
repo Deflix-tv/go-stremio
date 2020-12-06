@@ -46,6 +46,13 @@ type CatalogHandler func(ctx context.Context, id string, userData interface{}) (
 // If yes, a pointer to an object you registered will be passed. It's nil if the user didn't provide user data.
 type StreamHandler func(ctx context.Context, id string, userData interface{}) ([]StreamItem, error)
 
+// MetaFetcher returns metadata for movies and TV shows.
+// It's used when you configure that the media name should be logged or that metadata should be put into the context.
+type MetaFetcher interface {
+	GetMovie(ctx context.Context, imdbID string) (cinemeta.Meta, error)
+	GetTVShow(ctx context.Context, imdbID string, season int, episode int) (cinemeta.Meta, error)
+}
+
 // Addon represents a remote addon.
 // You can create one with NewAddon() and then run it with Run().
 type Addon struct {
@@ -58,7 +65,7 @@ type Addon struct {
 	customEndpoints   []customEndpoint
 	manifestCallback  ManifestCallback
 	userDataType      reflect.Type
-	cinemetaClient    *cinemeta.Client
+	metaClient        MetaFetcher
 }
 
 // NewAddon creates a new Addon object that can be started with Run().
@@ -81,10 +88,10 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		return nil, errors.New("Setting a logging level in the options doesn't make sense when you already set a custom logger")
 	} else if opts.DisableRequestLogging && opts.LogMediaName {
 		return nil, errors.New("Enabling media name logging doesn't make sense when disabling request logging")
-	} else if opts.CinemetaClient != nil && !opts.LogMediaName && !opts.PutMetaInContext {
-		return nil, errors.New("Setting a Cinemeta client when neither logging the media name nor putting it in the context doesn't make sense")
-	} else if opts.CinemetaClient != nil && opts.CinemetaTimeout != 0 {
-		return nil, errors.New("Setting a Cinemeta timeout doesn't make sense when you already set a Cinemeta client")
+	} else if opts.MetaClient != nil && !opts.LogMediaName && !opts.PutMetaInContext {
+		return nil, errors.New("Setting a meta client when neither logging the media name nor putting it in the context doesn't make sense")
+	} else if opts.MetaClient != nil && opts.CinemetaTimeout != 0 {
+		return nil, errors.New("Setting a Cinemeta timeout doesn't make sense when you already set a meta client")
 	} else if manifest.BehaviorHints.ConfigurationRequired && !manifest.BehaviorHints.Configurable {
 		return nil, errors.New("Requiring a configuration only makes sense when also making the addon configurable")
 	} else if opts.ConfigureHTMLfs != nil && !manifest.BehaviorHints.Configurable {
@@ -113,14 +120,13 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 			return nil, fmt.Errorf("Couldn't create new logger: %w", err)
 		}
 	}
-	// Configure Cinemeta client if no custom one is set
-	var cinemetaClient *cinemeta.Client
-	if cinemetaClient == nil && (opts.LogMediaName || opts.PutMetaInContext) {
+	// Configure Cinemeta client if no custom MetaFetcher is set
+	if opts.MetaClient == nil && (opts.LogMediaName || opts.PutMetaInContext) {
 		cinemetaCache := cinemeta.NewInMemoryCache()
 		cinemetaOpts := cinemeta.ClientOptions{
 			Timeout: opts.CinemetaTimeout,
 		}
-		opts.CinemetaClient = cinemeta.NewClient(cinemetaOpts, cinemetaCache, opts.Logger)
+		opts.MetaClient = cinemeta.NewClient(cinemetaOpts, cinemetaCache, opts.Logger)
 	}
 
 	// Create and return addon
@@ -130,7 +136,7 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 		streamHandlers:  streamHandlers,
 		opts:            opts,
 		logger:          opts.Logger,
-		cinemetaClient:  opts.CinemetaClient,
+		metaClient:      opts.MetaClient,
 	}, nil
 }
 
@@ -228,7 +234,7 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
 	// Filter some requests (like for requests without user data when the addon requires configuration, or for missing type or id URL parameters) and put some request info in the context
 	addRouteMatcherMiddleware(app, a.manifest.BehaviorHints.ConfigurationRequired, a.opts.StreamIDregex, logger)
-	metaMw := createMetaMiddleware(a.cinemetaClient, a.opts.PutMetaInContext, a.opts.LogMediaName, logger)
+	metaMw := createMetaMiddleware(a.metaClient, a.opts.PutMetaInContext, a.opts.LogMediaName, logger)
 	// Meta middleware only works for stream requests.
 	if !a.manifest.BehaviorHints.ConfigurationRequired {
 		app.Use("/stream/:type/:id.json", metaMw)

@@ -8,11 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"go.uber.org/zap"
-
-	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 )
 
 type customMiddleware struct {
@@ -211,18 +210,18 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 	}
 }
 
-func createMetaMiddleware(cinemetaClient *cinemeta.Client, putMetaInHandlerContext, logMediaName bool, logger *zap.Logger) fiber.Handler {
+func createMetaMiddleware(metaClient MetaFetcher, putMetaInHandlerContext, logMediaName bool, logger *zap.Logger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// If we should put the meta in the context for *handlers* we get the meta synchronously.
 		// Otherwise we only need it for logging and can get the meta asynchronously.
 		if putMetaInHandlerContext {
-			putMetaInContext(c, cinemetaClient, logger)
+			putMetaInContext(c, metaClient, logger)
 			return c.Next()
 		} else if logMediaName {
 			var wg sync.WaitGroup
 			wg.Add(1)
 			go func() {
-				putMetaInContext(c, cinemetaClient, logger)
+				putMetaInContext(c, metaClient, logger)
 				wg.Done()
 			}()
 			err := c.Next()
@@ -235,7 +234,7 @@ func createMetaMiddleware(cinemetaClient *cinemeta.Client, putMetaInHandlerConte
 	}
 }
 
-func putMetaInContext(c *fiber.Ctx, cinemetaClient *cinemeta.Client, logger *zap.Logger) {
+func putMetaInContext(c *fiber.Ctx, metaClient MetaFetcher, logger *zap.Logger) {
 	var meta cinemeta.Meta
 	var err error
 	// type and id can never be empty, because that's been checked by a previous middleware
@@ -243,9 +242,9 @@ func putMetaInContext(c *fiber.Ctx, cinemetaClient *cinemeta.Client, logger *zap
 	id := c.Params("id", "")
 	switch t {
 	case "movie":
-		meta, err = cinemetaClient.GetMovie(c.Context(), id)
+		meta, err = metaClient.GetMovie(c.Context(), id)
 		if err != nil {
-			logger.Error("Couldn't get movie info from Cinemeta", zap.Error(err))
+			logger.Error("Couldn't get movie info with MetaFetcher", zap.Error(err))
 			return
 		}
 	case "series":
@@ -264,9 +263,9 @@ func putMetaInContext(c *fiber.Ctx, cinemetaClient *cinemeta.Client, logger *zap
 			logger.Warn("Can't parse episode as int", zap.String("episode", splitID[2]))
 			return
 		}
-		meta, err = cinemetaClient.GetTVShow(c.Context(), splitID[0], season, episode)
+		meta, err = metaClient.GetTVShow(c.Context(), splitID[0], season, episode)
 		if err != nil {
-			logger.Error("Couldn't get TV show info from Cinemeta", zap.Error(err))
+			logger.Error("Couldn't get TV show info with MetaFetcher", zap.Error(err))
 			return
 		}
 	}
