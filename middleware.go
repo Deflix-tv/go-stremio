@@ -8,11 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/VictoriaMetrics/metrics"
 	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
 )
 
@@ -102,17 +101,8 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 }
 
 func createMetricsMiddleware() fiber.Handler {
-	errCounter := promauto.NewCounter(prometheus.CounterOpts{
-		Name: "downstream_handlers_errors_total",
-		Help: "Total number of errors from downstream handlers in the metrics middleware",
-	})
-	counter := promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "http_requests_total",
-		Help: "Total number of HTTP requests",
-	}, []string{
-		"endpoint",
-		"status",
-	})
+	// Total number of errors from downstream handlers in the metrics middleware
+	errCounter := metrics.NewCounter("downstream_handlers_errors_total")
 
 	manifestRegex := regexp.MustCompile("^/.*/manifest.json$")
 	catalogRegex := regexp.MustCompile(`^/.*/catalog/.*/.*\.json`)
@@ -166,8 +156,12 @@ func createMetricsMiddleware() fiber.Handler {
 			endpoint = "other"
 		}
 
-		status := strconv.Itoa(c.Response().StatusCode())
-		counter.WithLabelValues(endpoint, status).Inc()
+		// Total number of HTTP requests.
+		// With the VictoriaMetrics client library we have to use this workaround for having an equivalent of Prometheus' CounterVec,
+		// see https://pkg.go.dev/github.com/VictoriaMetrics/metrics@v1.12.3#example-Counter-Vec.
+		counterName := fmt.Sprintf(`http_requests_total{endpoint="%v", status="%v"}`, endpoint, c.Response().StatusCode())
+		counter := metrics.GetOrCreateCounter(counterName)
+		counter.Add(1)
 
 		return nil
 	}

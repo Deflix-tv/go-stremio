@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	netpprof "net/http/pprof"
 	"os"
 	"os/signal"
@@ -13,11 +14,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/VictoriaMetrics/metrics"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
 	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
@@ -269,7 +270,9 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	}
 	// Optional metrics
 	if a.opts.Metrics {
-		app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
+		app.Get("/metrics", adaptor.HTTPHandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			metrics.WritePrometheus(w, true)
+		}))
 	}
 
 	// Stremio endpoints
