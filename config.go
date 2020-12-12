@@ -45,6 +45,12 @@ type Options struct {
 	// The URLs are be the standard ones: "/debug/pprof/...".
 	// Default false.
 	Profiling bool
+	// Flag for indicating whether you want to collect and expose Prometheus metrics.
+	// The URL is the standard one: "/metrics".
+	// There's no credentials required for accessing it. If you expose deflix-stremio to the public,
+	// you might want to protect the metrics route in your reverse proxy.
+	// Default false.
+	Metrics bool
 	// Duration of client/proxy-side cache for responses from the catalog endpoint.
 	// Helps reducing number of requsts and transferred data volume to/from the server.
 	// The result is not cached by the SDK on the server side, so if two *separate* users make a reqeust,

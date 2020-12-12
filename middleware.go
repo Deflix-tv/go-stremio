@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/VictoriaMetrics/metrics"
 	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -95,6 +96,73 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 		}
 
 		logger.Info("Handled request", zapFields...)
+		return nil
+	}
+}
+
+func createMetricsMiddleware() fiber.Handler {
+	// Total number of errors from downstream handlers in the metrics middleware
+	errCounter := metrics.NewCounter("downstream_handlers_errors_total")
+
+	manifestRegex := regexp.MustCompile("^/.*/manifest.json$")
+	catalogRegex := regexp.MustCompile(`^/.*/catalog/.*/.*\.json`)
+	streamRegex := regexp.MustCompile(`^/.*/stream/.*/.*\.json`)
+
+	return func(c *fiber.Ctx) error {
+		if err := c.Next(); err != nil {
+			errCounter.Inc()
+			return err
+		}
+
+		path := c.Path()
+		var endpoint string
+		switch path {
+		case "/":
+			endpoint = "root"
+		case "/manifest.json":
+			endpoint = "manifest"
+		case "/configure":
+			endpoint = "configure"
+		case "/health":
+			endpoint = "health"
+		case "/metrics":
+			endpoint = "metrics"
+		}
+
+		if endpoint == "" {
+			if strings.HasPrefix(path, "/catalog") {
+				endpoint = "catalog"
+			} else if strings.HasPrefix(path, "/stream") {
+				endpoint = "stream"
+			} else if strings.HasPrefix(path, "/configure") {
+				endpoint = "configure-other"
+			} else if strings.HasPrefix(path, "/debug/pprof") {
+				endpoint = "pprof"
+			}
+		}
+
+		if endpoint == "" {
+			if manifestRegex.MatchString(path) {
+				endpoint = "manifest-data"
+			} else if catalogRegex.MatchString(path) {
+				endpoint = "catalog-data"
+			} else if streamRegex.MatchString(path) {
+				endpoint = "stream-data"
+			}
+		}
+
+		// It would be valid for Prometheus to have an empty string as label, but it's confusing for users and makes custom legends in Grafana ugly.
+		if endpoint == "" {
+			endpoint = "other"
+		}
+
+		// Total number of HTTP requests.
+		// With the VictoriaMetrics client library we have to use this workaround for having an equivalent of Prometheus' CounterVec,
+		// see https://pkg.go.dev/github.com/VictoriaMetrics/metrics@v1.12.3#example-Counter-Vec.
+		counterName := fmt.Sprintf(`http_requests_total{endpoint="%v", status="%v"}`, endpoint, c.Response().StatusCode())
+		counter := metrics.GetOrCreateCounter(counterName)
+		counter.Add(1)
+
 		return nil
 	}
 }

@@ -47,6 +47,7 @@ It provides the most important parts of the Node.js SDK and depending on the req
 - [x] Addon installation callback (manifest endpoint)
 - [x] Cinemeta client in the independent `cinemeta` package
 - [x] Optional stream ID filtering via regex
+- [x] Optional collection and export of basic metrics for [Prometheus](https://prometheus.io)
 
 Current *non*-features, as they're usually part of a reverse proxy deployed in front of the service:
 
@@ -119,8 +120,8 @@ Some reasons why you might want to consider developing an addon in Go with this 
 
 Criterium|Node.js addon|Go addon
 ---------|-------------|--------
-Direct SDK dependencies|9|4
-Transitive SDK dependencies|90¹|35²
+Direct SDK dependencies|9|5
+Transitive SDK dependencies|90¹|36²
 Size of a runnable addon|27 MB³|11-15 MB⁴
 Number of artifacts to deploy|depends⁵|1
 Runtime dependencies|Node.js|-
