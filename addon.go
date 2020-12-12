@@ -17,6 +17,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
 	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
@@ -231,6 +232,9 @@ func (a *Addon) Run(stoppingChan chan bool) {
 	if !a.opts.DisableRequestLogging {
 		app.Use(createLoggingMiddleware(logger, a.opts.LogIPs, a.opts.LogUserAgent, a.opts.LogMediaName, a.manifest.BehaviorHints.ConfigurationRequired))
 	}
+	if a.opts.Metrics {
+		app.Use(createMetricsMiddleware())
+	}
 	app.Use(corsMiddleware()) // Stremio doesn't show stream responses when no CORS middleware is used!
 	// Filter some requests (like for requests without user data when the addon requires configuration, or for missing type or id URL parameters) and put some request info in the context
 	addRouteMatcherMiddleware(app, a.manifest.BehaviorHints.ConfigurationRequired, a.opts.StreamIDregex, logger)
@@ -262,6 +266,10 @@ func (a *Addon) Run(stoppingChan chan bool) {
 		group.Get("/cmdline", adaptor.HTTPHandlerFunc(netpprof.Cmdline))
 		group.Get("/profile", adaptor.HTTPHandlerFunc(netpprof.Profile))
 		group.Get("/trace", adaptor.HTTPHandlerFunc(netpprof.Trace))
+	}
+	// Optional metrics
+	if a.opts.Metrics {
+		app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 	}
 
 	// Stremio endpoints

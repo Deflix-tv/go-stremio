@@ -11,6 +11,8 @@ import (
 	"github.com/deflix-tv/go-stremio/pkg/cinemeta"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
 )
 
@@ -95,6 +97,78 @@ func createLoggingMiddleware(logger *zap.Logger, logIPs, logUserAgent, logMediaN
 		}
 
 		logger.Info("Handled request", zapFields...)
+		return nil
+	}
+}
+
+func createMetricsMiddleware() fiber.Handler {
+	errCounter := promauto.NewCounter(prometheus.CounterOpts{
+		Name: "downstream_handlers_errors_total",
+		Help: "Total number of errors from downstream handlers in the metrics middleware",
+	})
+	counter := promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "http_requests_total",
+		Help: "Total number of HTTP requests",
+	}, []string{
+		"endpoint",
+		"status",
+	})
+
+	manifestRegex := regexp.MustCompile("^/.*/manifest.json$")
+	catalogRegex := regexp.MustCompile(`^/.*/catalog/.*/.*\.json`)
+	streamRegex := regexp.MustCompile(`^/.*/stream/.*/.*\.json`)
+
+	return func(c *fiber.Ctx) error {
+		if err := c.Next(); err != nil {
+			errCounter.Inc()
+			return err
+		}
+
+		path := c.Path()
+		var endpoint string
+		switch path {
+		case "/":
+			endpoint = "root"
+		case "/manifest.json":
+			endpoint = "manifest"
+		case "/configure":
+			endpoint = "configure"
+		case "/health":
+			endpoint = "health"
+		case "/metrics":
+			endpoint = "metrics"
+		}
+
+		if endpoint == "" {
+			if strings.HasPrefix(path, "/catalog") {
+				endpoint = "catalog"
+			} else if strings.HasPrefix(path, "/stream") {
+				endpoint = "stream"
+			} else if strings.HasPrefix(path, "/configure") {
+				endpoint = "configure-other"
+			} else if strings.HasPrefix(path, "/debug/pprof") {
+				endpoint = "pprof"
+			}
+		}
+
+		if endpoint == "" {
+			if manifestRegex.MatchString(path) {
+				endpoint = "manifest-data"
+			} else if catalogRegex.MatchString(path) {
+				endpoint = "catalog-data"
+			} else if streamRegex.MatchString(path) {
+				endpoint = "stream-data"
+			}
+		}
+
+		// It would be valid for Prometheus to have an empty string as label, but it's confusing for users and makes custom legends in Grafana ugly.
+		if endpoint == "" {
+			endpoint = "other"
+		}
+
+		status := strconv.Itoa(c.Response().StatusCode())
+		counter.WithLabelValues(endpoint, status).Inc()
+
 		return nil
 	}
 }
