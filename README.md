@@ -29,9 +29,10 @@ It provides the most important parts of the Node.js SDK and depending on the req
 
 ## Features
 
+- [x] Based on the [Express](https://expressjs.com)-inspired web framework [Fiber](https://gofiber.io)
 - [x] All required *types* for building catalog and stream addons
-- [x] Web server with graceful shutdown
-  - [x] With optional channel to be notified about a shutdown
+- [x] Graceful server shutdown
+  - [x] With optional channel to be notified about the shutdown
 - [x] CORS middleware to allow requests from Stremio
 - [x] Health check endpoint
 - [x] Optional profiling endpoints (for `go pprof`)
