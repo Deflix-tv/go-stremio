@@ -24,12 +24,91 @@ type Manifest struct {
 	BehaviorHints BehaviorHints `json:"behaviorHints,omitempty"`
 }
 
+// clone returns a deep copy of m.
+// We're not using one of the deep copy libraries because only few are maintained and even they have issues.
+func (m Manifest) clone() Manifest {
+	var resourceItems []ResourceItem
+	if m.ResourceItems != nil {
+		resourceItems = make([]ResourceItem, len(m.ResourceItems))
+		for i, resourceItem := range m.ResourceItems {
+			resourceItems[i] = resourceItem.clone()
+		}
+	}
+
+	var types []string
+	if m.Types != nil {
+		types = make([]string, len(m.Types))
+		for i, t := range m.Types {
+			types[i] = t
+		}
+	}
+
+	var catalogs []CatalogItem
+	if m.Catalogs != nil {
+		catalogs = make([]CatalogItem, len(m.Catalogs))
+		for i, catalog := range m.Catalogs {
+			catalogs[i] = catalog.clone()
+		}
+	}
+
+	var idPrefixes []string
+	if m.IDprefixes != nil {
+		idPrefixes = make([]string, len(m.IDprefixes))
+		for i, idPrefix := range m.IDprefixes {
+			idPrefixes[i] = idPrefix
+		}
+	}
+
+	return Manifest{
+		ID:          m.ID,
+		Name:        m.Name,
+		Description: m.Description,
+		Version:     m.Version,
+
+		ResourceItems: resourceItems,
+
+		Types:    types,
+		Catalogs: catalogs,
+
+		IDprefixes:    idPrefixes,
+		Background:    m.Background,
+		Logo:          m.Logo,
+		ContactEmail:  m.ContactEmail,
+		BehaviorHints: m.BehaviorHints,
+	}
+}
+
 type ResourceItem struct {
 	Name  string   `json:"name"`
 	Types []string `json:"types"` // Stremio supports "movie", "series", "channel" and "tv"
 
 	// Optional
 	IDprefixes []string `json:"idPrefixes,omitempty"`
+}
+
+func (ri ResourceItem) clone() ResourceItem {
+	var types []string
+	if ri.Types != nil {
+		types = make([]string, len(ri.Types))
+		for i, t := range ri.Types {
+			types[i] = t
+		}
+	}
+
+	var idPrefixes []string
+	if ri.IDprefixes != nil {
+		idPrefixes = make([]string, len(ri.IDprefixes))
+		for i, idPrefix := range ri.IDprefixes {
+			idPrefixes[i] = idPrefix
+		}
+	}
+
+	return ResourceItem{
+		Name:  ri.Name,
+		Types: types,
+
+		IDprefixes: idPrefixes,
+	}
 }
 
 type BehaviorHints struct {
@@ -51,6 +130,24 @@ type CatalogItem struct {
 	Extra []ExtraItem `json:"extra,omitempty"`
 }
 
+func (ci CatalogItem) clone() CatalogItem {
+	var extras []ExtraItem
+	if ci.Extra != nil {
+		extras = make([]ExtraItem, len(ci.Extra))
+		for i, extra := range ci.Extra {
+			extras[i] = extra.clone()
+		}
+	}
+
+	return CatalogItem{
+		Type: ci.Type,
+		ID:   ci.ID,
+		Name: ci.Name,
+
+		Extra: extras,
+	}
+}
+
 type ExtraItem struct {
 	Name string `json:"name"`
 
@@ -58,6 +155,24 @@ type ExtraItem struct {
 	IsRequired   bool     `json:"isRequired,omitempty"`
 	Options      []string `json:"options,omitempty"`
 	OptionsLimit int      `json:"optionsLimit,omitempty"`
+}
+
+func (ei ExtraItem) clone() ExtraItem {
+	var options []string
+	if ei.Options != nil {
+		options = make([]string, len(ei.Options))
+		for i, option := range ei.Options {
+			options[i] = option
+		}
+	}
+
+	return ExtraItem{
+		Name: ei.Name,
+
+		IsRequired:   ei.IsRequired,
+		Options:      options,
+		OptionsLimit: ei.OptionsLimit,
+	}
 }
 
 // MetaPreviewItem represents a meta preview item and is meant to be used within catalog responses.
