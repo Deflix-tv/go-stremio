@@ -73,9 +73,18 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 			}
 		}
 		if manifestCallback != nil {
-			if status := manifestCallback(c.Context(), userData); status >= 400 {
+			manifestClone := manifest.clone()
+			if status := manifestCallback(c.Context(), &manifestClone, userData); status >= 400 {
 				return c.SendStatus(status)
 			}
+			// Probably no performance gain when checking deep equality of original vs cloned manifest to skip potentially unnecessary JSON encoding.
+			clonedManifestBody, err := json.Marshal(manifestClone)
+			if err != nil {
+				logger.Fatal("Couldn't marshal cloned manifest", zap.Error(err))
+			}
+			logger.Debug("Responding", zap.ByteString("body", clonedManifestBody))
+			c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			return c.Send(clonedManifestBody)
 		}
 
 		if configured {

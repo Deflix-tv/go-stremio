@@ -222,7 +222,7 @@ func createManifestCallback(logger *zap.Logger) stremio.ManifestCallback {
 	var countError int64
 	var countOK int64
 
-	return func(ctx context.Context, userData interface{}) int {
+	return func(ctx context.Context, _ *stremio.Manifest, userData interface{}) int {
 		// User provided no data
 		if userData == nil {
 			atomic.AddInt64(&countNoData, 1)
