@@ -34,10 +34,9 @@ func createHealthHandler(logger *zap.Logger) fiber.Handler {
 func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallback ManifestCallback, userDataType reflect.Type, userDataIsBase64 bool) fiber.Handler {
 	// When there's user data we want Stremio to show the "Install" button, which it only does when "configurationRequired" is false.
 	// To not change the boolean value of the manifest object on the fly and thus mess with a single object across concurrent goroutines, we copy it and return two different objects.
+	// Note that this manifest copy has some values shallowly copied, but `BehaviorHints.ConfigurationRequired` is a simple type and thus a real copy.
 	configuredManifest := manifest
-	if manifest.BehaviorHints.ConfigurationRequired {
-		configuredManifest.BehaviorHints.ConfigurationRequired = false
-	}
+	configuredManifest.BehaviorHints.ConfigurationRequired = false
 
 	manifestBody, err := json.Marshal(manifest)
 	if err != nil {
@@ -76,6 +75,10 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 			manifestClone := manifest.clone()
 			if status := manifestCallback(c.Context(), &manifestClone, userData); status >= 400 {
 				return c.SendStatus(status)
+			}
+			// Similar to what we do before returning this handler func, we need to set `ConfigurationRequired` to false so that Stremio shows an install button at all
+			if configured {
+				manifestClone.BehaviorHints.ConfigurationRequired = false
 			}
 			// Probably no performance gain when checking deep equality of original vs cloned manifest to skip potentially unnecessary JSON encoding.
 			clonedManifestBody, err := json.Marshal(manifestClone)
