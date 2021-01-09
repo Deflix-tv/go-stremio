@@ -109,11 +109,14 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	if opts.BindAddr == "" {
 		opts.BindAddr = DefaultOptions.BindAddr
 	}
+	if opts.Port == 0 {
+		opts.Port = DefaultOptions.Port
+	}
 	if opts.LoggingLevel == "" {
 		opts.LoggingLevel = DefaultOptions.LoggingLevel
 	}
-	if opts.Port == 0 {
-		opts.Port = DefaultOptions.Port
+	if opts.LogEncoding == "" {
+		opts.LogEncoding = DefaultOptions.LogEncoding
 	}
 	if opts.CinemetaTimeout == 0 {
 		opts.CinemetaTimeout = DefaultOptions.CinemetaTimeout
@@ -122,7 +125,7 @@ func NewAddon(manifest Manifest, catalogHandlers map[string]CatalogHandler, stre
 	// Configure logger if no custom one is set
 	if opts.Logger == nil {
 		var err error
-		if opts.Logger, err = NewLogger(opts.LoggingLevel); err != nil {
+		if opts.Logger, err = NewLogger(opts.LoggingLevel, opts.LogEncoding); err != nil {
 			return nil, fmt.Errorf("Couldn't create new logger: %w", err)
 		}
 	}

@@ -28,6 +28,11 @@ type Options struct {
 	// Only required when not already setting the Logger in the options.
 	// Default "info".
 	LoggingLevel string
+	// Configures zap's log encoding.
+	// "console" will format a log line console-friendly.
+	// "json" is better suited when using a centralized log solution like ELK, Graylog or Loki.
+	// Default "console".
+	LogEncoding string
 	// Flag for indicating whether requests should be logged.
 	// Default false (meaning requests will be logged by default).
 	DisableRequestLogging bool
@@ -116,5 +121,6 @@ var DefaultOptions = Options{
 	BindAddr:        "localhost",
 	Port:            8080,
 	LoggingLevel:    "info",
+	LogEncoding:     "console",
 	CinemetaTimeout: 2 * time.Second,
 }

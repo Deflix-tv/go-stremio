@@ -11,6 +11,8 @@ import (
 // NewLogger creates a new logger with sane defaults and the passed level.
 // Supported levels are: debug, info, warn, error.
 // Only logs with that level and above are then logged (e.g. with "info" no debug logs will be logged).
+// The encoding parameter is optional and will only be used when non-zero. Valid values: "console" (default) and "json".
+//
 // It makes sense to get this logger as early as possible and use it in your
 // ManifestCallback, CatalogHandler and StreamHandler,
 // so that all logs behave and are formatted the same way.
@@ -18,7 +20,7 @@ import (
 // so that not two loggers are created.
 // Alternatively you can create your own custom *zap.Logger and set it in the options
 // when creating a new addon, leading to the addon using that custom logger.
-func NewLogger(level string) (*zap.Logger, error) {
+func NewLogger(level, encoding string) (*zap.Logger, error) {
 	logLevel, err := parseZapLevel(level)
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't parse log level: %w", err)
@@ -39,7 +41,10 @@ func NewLogger(level string) (*zap.Logger, error) {
 		EncodeLevel:    zapcore.CapitalLevelEncoder,
 		EncodeTime:     zapcore.RFC3339TimeEncoder,
 		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeCaller:   nil,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	}
+	if encoding != "" {
+		logConfig.Encoding = encoding
 	}
 	logger, err := logConfig.Build()
 	if err != nil {

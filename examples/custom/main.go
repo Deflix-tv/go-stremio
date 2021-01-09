@@ -73,7 +73,7 @@ type customer struct {
 
 func main() {
 	// Create the logger first, so we can use it in our handlers
-	logger, err := stremio.NewLogger("debug")
+	logger, err := stremio.NewLogger("debug", "")
 	if err != nil {
 		panic(err)
 	}
