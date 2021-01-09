@@ -41,10 +41,16 @@ func NewLogger(level, encoding string) (*zap.Logger, error) {
 		EncodeLevel:    zapcore.CapitalLevelEncoder,
 		EncodeTime:     zapcore.RFC3339TimeEncoder,
 		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
+		EncodeCaller:   nil,
 	}
 	if encoding != "" {
 		logConfig.Encoding = encoding
+	}
+	// "console" encoding works without caller encoder, but "json" doesn't.
+	// For "console" we prefer to have a more succinct log line without the caller (as configured above),
+	// but for "json" (and potentially others in the future) we need to set it.
+	if logConfig.Encoding != "console" {
+		logConfig.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 	}
 	logger, err := logConfig.Build()
 	if err != nil {
