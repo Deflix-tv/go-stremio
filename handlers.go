@@ -177,6 +177,9 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			case NotFound:
 				logger.Warn("Got request for unhandled media ID; returning 404")
 				return c.SendStatus(http.StatusNotFound)
+			case BadRequest:
+				logger.Warn("Got bad request; returning 400")
+				return c.SendStatus(http.StatusBadRequest)
 			default:
 				logger.Error("Addon returned error", zap.Error(err), zapLogType, zapLogID)
 				return c.SendStatus(http.StatusInternalServerError)
