@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"net/http"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -159,7 +158,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 		handler, ok := handlers[requestedType]
 		if !ok {
 			logger.Warn("Got request for unhandled type; returning 404")
-			return c.SendStatus(http.StatusNotFound)
+			return c.SendStatus(fiber.StatusNotFound)
 		}
 
 		// Decode user data
@@ -181,20 +180,20 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			switch err {
 			case NotFound:
 				logger.Warn("Got request for unhandled media ID; returning 404")
-				return c.SendStatus(http.StatusNotFound)
+				return c.SendStatus(fiber.StatusNotFound)
 			case BadRequest:
 				logger.Warn("Got bad request; returning 400")
-				return c.SendStatus(http.StatusBadRequest)
+				return c.SendStatus(fiber.StatusBadRequest)
 			default:
 				logger.Error("Addon returned error", zap.Error(err), zapLogType, zapLogID)
-				return c.SendStatus(http.StatusInternalServerError)
+				return c.SendStatus(fiber.StatusInternalServerError)
 			}
 		}
 
 		resBody, err := json.Marshal(res)
 		if err != nil {
 			logger.Error("Couldn't marshal response", zap.Error(err), zapLogType, zapLogID)
-			return c.SendStatus(http.StatusInternalServerError)
+			return c.SendStatus(fiber.StatusInternalServerError)
 		}
 
 		// Handle ETag
@@ -216,7 +215,7 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 			if !modified {
 				c.Set(fiber.HeaderCacheControl, cacheHeaderVal) // Required according to https://tools.ietf.org/html/rfc7232#section-4.1
 				c.Set(fiber.HeaderETag, eTag)                   // We set it to make sure a client doesn't overwrite its cached ETag with an empty string or so.
-				return c.SendStatus(http.StatusNotModified)
+				return c.SendStatus(fiber.StatusNotModified)
 			}
 		}
 
@@ -245,7 +244,7 @@ func createRootHandler(redirectURL string, logger *zap.Logger) fiber.Handler {
 
 		logger.Debug("Responding with redirect", zap.String("redirectURL", redirectURL))
 		c.Set(fiber.HeaderLocation, redirectURL)
-		return c.SendStatus(http.StatusMovedPermanently)
+		return c.SendStatus(fiber.StatusMovedPermanently)
 	}
 }
 
