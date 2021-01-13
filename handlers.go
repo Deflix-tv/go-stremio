@@ -147,6 +147,11 @@ func createHandler(handlerName string, handlers map[string]handler, jsonArrayKey
 
 		requestedType := c.Params("type")
 		requestedID := c.Params("id")
+		requestedID, err := url.PathUnescape(requestedID)
+		if err != nil {
+			logger.Error("Requested ID couldn't be unescaped", zap.String("requestedID", requestedID))
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
 
 		zapLogType, zapLogID := zap.String("requestedType", requestedType), zap.String("requestedID", requestedID)
 
