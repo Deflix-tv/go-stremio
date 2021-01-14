@@ -104,9 +104,7 @@ func createManifestHandler(manifest Manifest, logger *zap.Logger, manifestCallba
 func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) fiber.Handler {
 	handlers := make(map[string]handler, len(catalogHandlers))
 	for k, v := range catalogHandlers {
-		handlers[k] = func(ctx context.Context, id string, userData interface{}) (interface{}, error) {
-			return v(ctx, id, userData)
-		}
+		handlers[k] = convertCatalogHandler(v)
 	}
 	return createHandler("catalog", handlers, []byte("metas"), cacheAge, cachePublic, handleEtag, logger, userDataType, userDataIsBase64)
 }
@@ -114,11 +112,21 @@ func createCatalogHandler(catalogHandlers map[string]CatalogHandler, cacheAge ti
 func createStreamHandler(streamHandlers map[string]StreamHandler, cacheAge time.Duration, cachePublic, handleEtag bool, logger *zap.Logger, userDataType reflect.Type, userDataIsBase64 bool) fiber.Handler {
 	handlers := make(map[string]handler, len(streamHandlers))
 	for k, v := range streamHandlers {
-		handlers[k] = func(ctx context.Context, id string, userData interface{}) (interface{}, error) {
-			return v(ctx, id, userData)
-		}
+		handlers[k] = convertStreamHandler(v)
 	}
 	return createHandler("stream", handlers, []byte("streams"), cacheAge, cachePublic, handleEtag, logger, userDataType, userDataIsBase64)
+}
+
+func convertCatalogHandler(h CatalogHandler) handler {
+	return func(ctx context.Context, id string, userData interface{}) (interface{}, error) {
+		return h(ctx, id, userData)
+	}
+}
+
+func convertStreamHandler(h StreamHandler) handler {
+	return func(ctx context.Context, id string, userData interface{}) (interface{}, error) {
+		return h(ctx, id, userData)
+	}
 }
 
 // Common handler (same signature as both catalog and stream handler)
