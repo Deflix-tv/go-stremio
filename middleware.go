@@ -2,6 +2,7 @@ package stremio
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -308,6 +309,12 @@ func putMetaInContext(c *fiber.Ctx, metaClient MetaFetcher, logger *zap.Logger) 
 	// type and id can never be empty, because that's been checked by a previous middleware
 	t := c.Params("type", "")
 	id := c.Params("id", "")
+	id, err = url.PathUnescape(id)
+	if err != nil {
+		logger.Error("ID in URL parameters couldn't be unescaped", zap.String("id", id))
+		return
+	}
+
 	switch t {
 	case "movie":
 		meta, err = metaClient.GetMovie(c.Context(), id)
@@ -337,6 +344,7 @@ func putMetaInContext(c *fiber.Ctx, metaClient MetaFetcher, logger *zap.Logger) 
 			return
 		}
 	}
+
 	logger.Debug("Got meta from cinemata client", zap.String("meta", fmt.Sprintf("%+v", meta)))
 	c.Locals("meta", meta)
 }
