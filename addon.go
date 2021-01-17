@@ -219,9 +219,9 @@ func (a *Addon) Run(stoppingChan chan bool) {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
-				logger.Error("Fiber's error handler was called", zap.Error(e))
+				logger.Error("Fiber's error handler was called", zap.Error(e), zap.String("url", c.OriginalURL()))
 			} else {
-				logger.Error("Fiber's error handler was called", zap.Error(err))
+				logger.Error("Fiber's error handler was called", zap.Error(err), zap.String("url", c.OriginalURL()))
 			}
 			c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 			return c.Status(code).SendString("An internal server error occurred")
