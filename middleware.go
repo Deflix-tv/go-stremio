@@ -222,6 +222,11 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 				logger.Debug("Rejecting bad request due to missing type or ID")
 				return c.SendStatus(fiber.StatusBadRequest)
 			}
+			id, err := url.PathUnescape(id)
+			if err != nil {
+				logger.Warn("Couldn't unescape ID", zap.Error(err), zap.String("id", id))
+				return c.SendStatus(fiber.StatusInternalServerError)
+			}
 			if !streamIDregex.MatchString(id) {
 				logger.Debug("Rejecting bad request due to stream ID not matching the given regex")
 				return c.SendStatus(fiber.StatusBadRequest)
@@ -255,6 +260,11 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 				logger.Debug("Rejecting bad request due to missing type or ID")
 				return c.SendStatus(fiber.StatusBadRequest)
 			}
+			id, err := url.PathUnescape(id)
+			if err != nil {
+				logger.Warn("Couldn't unescape ID", zap.Error(err), zap.String("id", id))
+				return c.SendStatus(fiber.StatusInternalServerError)
+			}
 			if !streamIDregex.MatchString(id) {
 				logger.Debug("Rejecting bad request due to stream ID not matching the given regex")
 				return c.SendStatus(fiber.StatusBadRequest)
@@ -267,6 +277,11 @@ func addRouteMatcherMiddleware(app *fiber.App, requiresUserData bool, streamIDre
 			if c.Params("type", "") == "" || id == "" {
 				logger.Debug("Rejecting bad request due to missing type or ID")
 				return c.SendStatus(fiber.StatusBadRequest)
+			}
+			id, err := url.PathUnescape(id)
+			if err != nil {
+				logger.Warn("Couldn't unescape ID", zap.Error(err), zap.String("id", id))
+				return c.SendStatus(fiber.StatusInternalServerError)
 			}
 			if !streamIDregex.MatchString(id) {
 				logger.Debug("Rejecting bad request due to stream ID not matching the given regex")
