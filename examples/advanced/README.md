@@ -1,4 +1,4 @@
-# Custom addon example
+# Advanced addon example
 
 This example is a more complex example showing some advanced features of go-stremio, including custom middleware and endpoints.
 
@@ -18,9 +18,9 @@ This example is a more complex example showing some advanced features of go-stre
 ## Run
 
 1. `git clone https://github.com/Deflix-tv/go-stremio.git`
-2. `cd ./go-stremio/examples/custom`
+2. `cd ./go-stremio/examples/advanced`
 3. `go build`
-4. Windows: `./custom.exe`; macOS and Linux: `./custom`
+4. Windows: `./advanced.exe`; macOS and Linux: `./advanced`
 
 > Note: We don't use `go run .` here because that creates the binary in a temporary directory and then it can't access the `web` directory.
 

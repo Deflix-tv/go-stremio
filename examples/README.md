@@ -4,4 +4,4 @@ Go to the individual examples to see a detailed description of what they do and 
 
 - [Catalog addon example](./catalog/README.md)
 - [Stream addon example](./stream/README.md)
-- [Custom addon example](./custom/README.md)
+- [Advanced addon example](./advanced/README.md)
