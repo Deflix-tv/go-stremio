@@ -104,7 +104,7 @@ func movieHandler(ctx context.Context, id string, userData interface{}) ([]strem
             },
             // HTTP stream
             {
-                URL:   "http://distribution.bbb3d.renderfarming.net/video/mp4/bbb_sunflower_1080p_30fps_normal.mp4",
+                URL:   "https://ftp.halifax.rwth-aachen.de/blender/demo/movies/BBB/bbb_sunflower_1080p_30fps_normal.mp4",
                 Title: "1080p (HTTP stream)",
             },
         }, nil

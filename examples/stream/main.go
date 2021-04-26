@@ -64,7 +64,7 @@ func movieHandler(ctx context.Context, id string, userData interface{}) ([]strem
 			},
 			// HTTP stream
 			{
-				URL:   "http://distribution.bbb3d.renderfarming.net/video/mp4/bbb_sunflower_1080p_30fps_normal.mp4",
+				URL:   "https://ftp.halifax.rwth-aachen.de/blender/demo/movies/BBB/bbb_sunflower_1080p_30fps_normal.mp4",
 				Title: "1080p (HTTP stream)",
 			},
 		}, nil
@@ -76,7 +76,7 @@ func movieHandler(ctx context.Context, id string, userData interface{}) ([]strem
 				FileIndex: 0,
 			},
 			{
-				URL:   "http://download.blender.org/demo/movies/Sintel.2010.1080p.mkv",
+				URL:   "https://ftp.halifax.rwth-aachen.de/blender/demo/movies/Sintel.2010.1080p.mkv",
 				Title: "1080p (HTTP stream)",
 			},
 		}, nil
