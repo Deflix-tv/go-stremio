@@ -103,6 +103,8 @@ type Options struct {
 	CinemetaTimeout time.Duration
 	// "File system" with HTML files that will be served for the "/configure" endpoint.
 	// Typically an `http.Dir`, which you can simply create with `http.Dir("/path/to/html/files")`.
+	// For using it with Go's embedding feature, you can either use `http.FS(embedFS)` directly,
+	// or if the directory doesn't match the URL path you can use `stremio.PrefixedFS`.
 	// No configure endpoint will be created if this is nil, so you can add a custom one.
 	// Default nil.
 	ConfigureHTMLfs http.FileSystem
