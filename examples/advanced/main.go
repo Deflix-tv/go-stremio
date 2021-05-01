@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"net/http"
 	"sync/atomic"
@@ -55,6 +56,10 @@ var (
 	}
 )
 
+// content is our static web server content.
+//go:embed web/index.html
+var content embed.FS
+
 // Dummy "DB" of users - just to demonstrate some functionality
 var allowedUsers = []customer{
 	{UserID: "123", Token: "abc"},
@@ -90,8 +95,19 @@ func main() {
 		UserDataIsBase64: true,
 		// We want to access the cinemeta.Meta from the context
 		PutMetaInContext: true,
-		// In order for this to work properly, the "web" directory must be located in the same directory as the executable of this addon.
-		ConfigureHTMLfs: http.Dir("web"),
+		// To read from the file system for each request, which makes it possible to modify the file on-the-fly, use this:
+		//   ConfigureHTMLfs: http.Dir("web"),
+		// But it requires the "web" directory to be located in the same directory as the executable of this addon.
+		//
+		// The alternative is to embed the file into the compiled binary, which makes the access faster,
+		// the distribution of the addon easier (single file instead of multiple). It requires Go 1.16 though.
+		// In this example we have to use the PrefixedFS wrapper so that the request to "/configure" goes to
+		// "/web", as the HTTP middleware only strips the URL path prefix, but doesn't know about our directory structure.
+		// If your embedded content contains the index.html directly, you can just set `http.FS(content)` here.
+		ConfigureHTMLfs: &stremio.PrefixedFS{
+			Prefix: "web",
+			FS:     http.FS(content),
+		},
 	}
 
 	// Create addon
