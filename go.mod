@@ -1,6 +1,6 @@
 module github.com/deflix-tv/go-stremio
 
-go 1.15
+go 1.16
 
 require (
 	github.com/VictoriaMetrics/metrics v1.17.2
