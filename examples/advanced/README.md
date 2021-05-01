@@ -19,10 +19,7 @@ This example is a more complex example showing some advanced features of go-stre
 
 1. `git clone https://github.com/Deflix-tv/go-stremio.git`
 2. `cd ./go-stremio/examples/advanced`
-3. `go build`
-4. Windows: `./advanced.exe`; macOS and Linux: `./advanced`
-
-> Note: We don't use `go run .` here because that creates the binary in a temporary directory and then it can't access the `web` directory.
+3. `go run .`
 
 You should see some startup logs like this:
 
