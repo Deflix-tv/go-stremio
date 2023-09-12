@@ -1,4 +1,4 @@
-module github.com/deflix-tv/go-stremio
+module github.com/testica/go-stremio
 
 go 1.16
 
