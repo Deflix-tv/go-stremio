@@ -261,6 +261,7 @@ type StreamItem struct {
 
 	// Optional
 	Title     string `json:"title,omitempty"`   // Usually used for stream quality
+	Name     	string `json:"name,omitempty"`   // Usually used for stream quality
 	FileIndex uint8  `json:"fileIdx,omitempty"` // Only when using InfoHash
 
 	// TODO: subtitles
